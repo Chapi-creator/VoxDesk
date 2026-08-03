@@ -1,0 +1,43 @@
+const CONSTANTS = {
+  APP_NAME: 'AI Desktop Assistant',
+  VOICE_LANG: 'es-MX',
+  WAKE_WORD: 'asistente',
+  IPC_CHANNELS: {
+    COMMAND_EXEC: 'command:execute',
+    COMMAND_RESULT: 'command:result',
+    APP_LAUNCH: 'app:launch',
+    APP_SEARCH: 'app:search',
+    TEXT_TYPE: 'text:type',
+    TTS_SPEAK: 'tts:speak',
+    STATUS_UPDATE: 'status:update',
+    CONFIG_GET: 'config:get',
+    CONFIG_SAVE: 'config:save',
+    LLM_ASK: 'llm:ask',
+  },
+  SEPARATORS: [' y ', ' y luego ', ' luego ', ' después ', ' despues ', ', '],
+  COMMANDS: {
+    LAUNCH: 'abre',
+    SEARCH: 'busca',
+    TYPE: 'escribe',
+    SPEAK: 'di',
+    STOP: 'detente',
+    HELP: 'ayuda',
+    VOLUME: 'volumen',
+    BRIGHTNESS: 'brillo',
+    ALARM: 'alarma',
+    SCREENSHOT: 'captura',
+    SYSTEM: 'sistema',
+    NOTE: 'nota',
+    CLIMA: 'clima',
+    TRANSLATE: 'traduce',
+  },
+  UI: {
+    STATUS_LISTENING: 'Escuchando...',
+    STATUS_PROCESSING: 'Procesando...',
+    STATUS_IDLE: 'Presiona el botón o Ctrl+Shift+V',
+    STATUS_ERROR: 'Error',
+    STATUS_SPEAKING: 'Hablando...',
+  },
+}
+
+if (typeof module !== 'undefined') module.exports = CONSTANTS

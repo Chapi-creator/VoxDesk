@@ -1,0 +1,70 @@
+{
+  "name": "voxdesk",
+  "version": "0.1.0",
+  "description": "Asistente de voz para Windows. Controla tu PC con comandos de voz: apps, archivos, macros, sistema, OCR e IA.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:wake": "python -m PyInstaller --clean --noconfirm scripts/wake.spec",
+    "build": "npm run build:wake && electron-builder build --win --x64",
+    "build:portable": "npm run build:wake && electron-builder build --win portable --x64",
+    "build:setup": "npm run build:wake && electron-builder build --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.voxdesk.app",
+    "productName": "VoxDesk",
+    "win": {
+      "target": [
+        "portable",
+        "nsis"
+      ]
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Chapi-creator",
+        "repo": "VoxDesk"
+      }
+    ],
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "src/**/*",
+      "!src/main/vosk-model/**",
+      "!src/main/wake.py",
+      "!src/main/__pycache__/**",
+      "assets/**/*",
+      "package.json"
+    ],
+    "icon": "assets/icon.png",
+    "extraResources": [
+      {
+        "from": "dist/wake.exe",
+        "to": "wake.exe"
+      }
+    ],
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "VoxDesk",
+      "artifactName": "VoxDesk-${version}-setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "VoxDesk-${version}-portable.${ext}"
+    }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9",
+    "nodemailer": "^9.0.3"
+  }
+}
