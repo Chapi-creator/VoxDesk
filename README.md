@@ -69,24 +69,6 @@ Lee la [Política de Privacidad](PRIVACY.md). Resumen:
 - Cuando la IA genera código PowerShell, la app te pide confirmación si detecta una operación peligrosa.
 - **Usa la ejecución de comandos solo si entiendes qué hace.**
 
-## Desarrollo
-
-```bash
-npm install
-npm start            # desarrollo (necesita python + deps para wake.py)
-npm run build:wake   # compila wake.exe con PyInstaller
-npm run build:setup  # instalador completo
-npm run build:portable
-```
-
-## Publicar una nueva versión
-
-1. Sube la versión en `package.json`.
-2. `npm run build:setup`
-3. `gh release create vX.Y.Z dist/VoxDesk-X.Y.Z-setup.exe dist/latest.yml --title "VoxDesk X.Y.Z" --notes "..."`
-
-Las instalaciones existentes se actualizarán solas.
-
 ## Licencia
 
 Privado hasta nuevo aviso. Contacta al autor para uso comercial.
