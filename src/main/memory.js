@@ -62,7 +62,6 @@ let _recording = false
 function startRecording() { _recording = true }
 function stopRecording() { _recording = false }
 function isRecording() { return _recording }
-// ponytail: recording buffer managed in main.js (_macroBuffer), not here
 
 function saveMacro(name, commands) {
   const d = load()

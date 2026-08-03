@@ -346,15 +346,10 @@ const PATTERNS = [
   { match: /brillo\s+(a|al?)\s+(\d+)/i,
     run: (m) => brightnessChange('', m[2]),
     msg: (m) => `Brillo al ${m[2]}%` },
-  // ponytail: rotate screen requires C# struct P/Invoke, complex PowerShell inline
-  // skip for now; use Windows built-in shortcut Ctrl+Alt+Arrow instead
-
   // --- NETWORK ---
   { match: /wifi\s+(on|off|enciende|apaga|activa|desactiva)/i,
     run: (m) => `netsh interface set interface "${getWifiAdapter()}" ${m[1] === 'on' || m[1] === 'enciende' || m[1] === 'activa' ? 'enabled' : 'disabled'}`,
     msg: (m) => `WiFi ${m[1] === 'on' || m[1] === 'enciende' || m[1] === 'activa' ? 'activado' : 'desactivado'}` },
-  // ponytail: bluetooth/airplane mode require UWP Radio APIs via PowerShell
-  // use Windows built-in: Win+A (action center) for manual toggle
 
   // --- SETTINGS ---
   { match: /abre\s+(configuraci[óo]n|ajustes|settings)(\s+de\s+(.+))?/i,
