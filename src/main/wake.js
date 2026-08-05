@@ -20,8 +20,10 @@ let _gen = 0
 let _retryDelay = 200
 let _retryCount = 0
 let _startTime = 0
+let _wakeWord = 'asistente'
 
 function start(wakeWord) {
+  if (wakeWord) _wakeWord = wakeWord
   if (running) return true
   if (!fs.existsSync(WAKE_EXE)) {
     running = false
@@ -33,6 +35,7 @@ function start(wakeWord) {
   const gen = ++_gen
   const args = []
   if (wakeWord) args.push(wakeWord)
+  else if (_wakeWord) args.push(_wakeWord)
 
   _startTime = Date.now()
   const p = spawn(WAKE_EXE, args, {

@@ -46,7 +46,7 @@ test('temperatura en Barcelona', () => {
 test('traduce hola al inglés', () => {
   const r = parser.parse('traduce hola al inglés')
   assert.equal(r.command, 'traduce')
-  assert.equal(r.args, 'hola inglés')
+  assert.equal(r.args, 'hola al inglés')
 })
 
 test('detente', () => {

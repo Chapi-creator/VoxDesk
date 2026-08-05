@@ -5,7 +5,7 @@ const http = require('http')
 const fs = require('fs')
 const os = require('os')
 const { exec } = require('child_process')
-const { IPC_CHANNELS } = require('./src/shared/constants')
+const { IPC_CHANNELS, COMMANDS } = require('./src/shared/constants')
 const registry = require('./src/main/commands/registry')
 const parser = require('./src/main/command-parser')
 const wake = require('./src/main/wake')
@@ -110,6 +110,13 @@ ipcMain.handle('speech:recognize', async () => {
   }
 })
 
+ipcMain.handle('speech:cancel', async () => {
+  const trigger = path.join(os.tmpdir(), 'voxdesk_stop_trigger')
+  try { fs.writeFileSync(trigger, '1') } catch {}
+  tts.stop()
+  return true
+})
+
 async function _handleOne(transcript, _depth = 0) {
   if (!transcript) return { success: false, message: 'No te escuché' }
   if (_depth > 5) return { success: false, message: 'Demasiadas macros anidadas' }
@@ -129,7 +136,7 @@ async function _handleOne(transcript, _depth = 0) {
   }
 
   const SEP_SPLIT = /(?:\s+y\s+|\s+y\s+luego\s+|\s+luego\s+|\s+despu[ée]s\s+)/i
-  const BROWSER_SITE = /^abre\s+(chrome|edge|brave|firefox|msedge)\b.*\b(pon|poner|abre|abrir|dime|mete)\b.+/i
+  const BROWSER_SITE = /^(?:puedes\s+)?(?:abre|abrir|abreme)\s+(?:el\s+|la\s+)?(?:navegador\s+)?(?:(?:google\s+)?chrome|(?:microsoft\s+)?edge|(?:mozilla\s+)?firefox|brave|msedge)\b.*\b(pon|poner|abre|abrir|dime|mete|abreme)\b.+/i
   if (SEP_SPLIT.test(t) && !AI_KEYWORD.test(transcript) && !BROWSER_SITE.test(t)) {
     const parts = t.split(SEP_SPLIT).map(s => s.trim()).filter(Boolean)
     if (parts.length > 1) {
@@ -146,7 +153,8 @@ async function _handleOne(transcript, _depth = 0) {
   }
 
   const parsed = parser.parse(t)
-  if (parsed && !t.includes(' y ') && !t.includes(' luego ')) {
+  const allowLaunch = parsed && parsed.command === COMMANDS.LAUNCH
+  if (parsed && (allowLaunch || (!t.includes(' y ') && !t.includes(' luego ')))) {
     const handler = registry.get(parsed.command)
     if (handler) {
       let args = parsed.args
@@ -380,12 +388,7 @@ app.whenReady().then(async () => {
   tray.setContextMenu(ctxMenu)
   tray.on('click', () => { mainWindow?.show(); mainWindow?.focus() })
 
-  mainWindow.on('close', (e) => {
-    if (!forceQuit) {
-      e.preventDefault()
-      mainWindow?.hide()
-    }
-  })
+  mainWindow.on('close', () => { forceQuit = true })
 })
 
 app.on('window-all-closed', () => {

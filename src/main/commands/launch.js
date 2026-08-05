@@ -207,7 +207,7 @@ const SITES = {
 function extractSiteUrl(remaining) {
   const t = (remaining || '').trim()
   if (!t) return null
-  const verbs = /(pon|poner|abre|abrir|abreme|dime|mete)/gi
+  const verbs = /(abreme|abrir|poner|abre|pon|dime|mete)/gi
   let last = null
   let m
   while ((m = verbs.exec(t))) last = m
@@ -225,9 +225,9 @@ function openInBrowser(target, url) {
   return new Promise(resolve => {
     const found = searchFileSystem(target)
     const cmd = found ? `"${found}" "${url}"` : `${target} "${url}"`
-    exec(cmd, { timeout: 3000 }, err => {
+    exec(cmd, { timeout: 3000, windowsHide: true }, err => {
       if (err) {
-        exec(`start "" "${url}"`, e2 => {
+        exec(`start "" "${url}"`, { windowsHide: true }, e2 => {
           resolve({ success: !e2, message: e2 ? `No pude abrir ${url}` : `Abriendo ${url}` })
         })
       } else {
@@ -246,7 +246,7 @@ function execute(text) {
   if (raw.startsWith('carpeta') || (raw.includes('carpeta') && Object.keys(FOLDER_LOCATIONS).some(k => raw.includes(k))) || Object.keys(FOLDER_LOCATIONS).includes(raw)) {
     const folderPath = sanitize(resolveFolderPath(raw))
     return new Promise((resolve) => {
-      exec(`start "" "${folderPath}"`, (err) => {
+      exec(`start "" "${folderPath}"`, { windowsHide: true }, (err) => {
         resolve({ success: !err, message: err ? `No pude abrir "${folderPath}"` : `Abriendo carpeta` })
       })
     })
@@ -273,27 +273,27 @@ function execute(text) {
 
   return new Promise((resolve) => {
     if (target.startsWith('ms-')) {
-      exec(`start ${target}`, (err) => {
+      exec(`start ${target}`, { windowsHide: true }, (err) => {
         resolve({ success: !err, message: err ? `No pude abrir "${appName}"` : `Abriendo ${appName}` })
       })
       return
     }
 
     if (looksLikeUrl(target)) {
-      exec(`start "" "${target}"`, (err) => {
+      exec(`start "" "${target}"`, { windowsHide: true }, (err) => {
         resolve({ success: !err, message: err ? `No pude abrir "${target}"` : `Abriendo ${target.split('/')[0]}` })
       })
       return
     }
 
-    exec(`"${target}"`, { timeout: 3000 }, (err) => {
+    exec(`"${target}"`, { timeout: 3000, windowsHide: true }, (err) => {
       if (err) {
-        exec(`start "" "${target}"`, { timeout: 3000, shell: true }, (e2) => {
+        exec(`start "" "${target}"`, { timeout: 3000, shell: true, windowsHide: true }, (e2) => {
           if (e2) {
             const found = target.endsWith('.lnk') ? target : searchFileSystem(target)
             if (found) {
               const cmd = found.endsWith('.lnk') ? `start "" "${found}"` : `"${found}"`
-              exec(cmd, (e3) => {
+              exec(cmd, { windowsHide: true }, (e3) => {
                 resolve({ success: !e3, message: e3 ? `No pude abrir "${appName}"` : `Abriendo ${appName}` })
               })
             } else {

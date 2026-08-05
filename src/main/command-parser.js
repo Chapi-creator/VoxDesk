@@ -57,7 +57,8 @@ class CommandParser {
 
       for (const [, keyword] of entries) {
         if (normalized === keyword) {
-          const args = words.slice(i + 1).join(' ')
+          let args = words.slice(i + 1).join(' ')
+          args = args.replace(/^(el|la|los|las|un|una|unos|unas|en|a|al|de|del)\s+/i, '')
           return { command: keyword, args }
         }
       }

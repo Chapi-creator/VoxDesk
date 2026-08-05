@@ -37,15 +37,17 @@
     ui.setIdle()
   }
 
-  function handleResult(result) {
+  async function handleResult(result) {
     clearTimeout(_thinkTimer); _thinkTimer = null
     if (result.stop) { ui.showResponse(result.message || 'Detenido'); ui.setIdle(); return }
+    ui.setProcessing()
     ui.setRecording(!!result.recording)
     if (result._tts !== undefined) ui.setTtsAvailable(result._tts)
     ui.showResponse(result.message)
     if (result.success && result.speak) {
       ui.setSpeaking()
-      window.api.speak(result.message)
+      await window.api.speak(result.message)
+      ui.setIdle()
     } else {
       _idleTimer = setTimeout(() => { _idleTimer = null; ui.setIdle() }, 3000)
     }
@@ -59,6 +61,7 @@
 
   ui.onStop = () => {
     window.api.stopSpeaking()
+    window.api.cancelSpeech()
     ui.setIdle()
   }
 
@@ -89,7 +92,6 @@
     if (_idleTimer) { clearTimeout(_idleTimer); _idleTimer = null }
     ui.setListening()
     ui.showTranscript('...')
-    _thinkTimer = setTimeout(() => ui.setThinking(), 3000)
   })
 
   window.api.onWakeResult((result) => {
