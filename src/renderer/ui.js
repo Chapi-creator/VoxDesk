@@ -26,6 +26,11 @@ class UIManager {
     this.elements.ttsOff = document.getElementById('tts-off')
     this.elements.btnStop = document.getElementById('btn-stop')
 
+    const mc = document.getElementById('mascot-canvas')
+    if (mc && typeof Mascot !== 'undefined') {
+      this.mascot = new Mascot(mc, () => { if (this.onToggle) this.onToggle() })
+    }
+
     if (this.elements.btn) {
       this.elements.btn.addEventListener('click', () => {
         if (this.onToggle) this.onToggle()
@@ -58,6 +63,7 @@ class UIManager {
     this._level = Math.min(1, Math.max(0, level))
     this._speaking = !!speaking
     this._vadState = vad || 'listening'
+    if (this.mascot) this.mascot.setLevel(this._level)
     if (!this._animFrame) this._startDrawLoop()
   }
 
@@ -132,6 +138,7 @@ class UIManager {
 
   setListening() {
     this._setStatus('ESCUCHANDO', 'listening')
+    if (this.mascot) this.mascot.setState('listening')
     if (this.elements.btn) this.elements.btn.classList.add('recording')
     if (this.elements.levelMeter) this.elements.levelMeter.classList.add('visible')
     if (this.elements.window) this.elements.window.classList.add('active')
@@ -139,6 +146,7 @@ class UIManager {
 
   setProcessing() {
     this._setStatus('PROCESANDO', 'processing')
+    if (this.mascot) this.mascot.setState('thinking')
     if (this.elements.levelMeter) this.elements.levelMeter.classList.remove('visible')
     if (this.elements.window) {
       this.elements.window.classList.add('active')
@@ -149,11 +157,13 @@ class UIManager {
 
   setThinking() {
     this._setStatus('PENSANDO', 'thinking')
+    if (this.mascot) this.mascot.setState('thinking')
     if (this.elements.window) this.elements.window.classList.add('thinking')
   }
 
   setIdle() {
-    this._setStatus('PRESIONA EL BOTÓN', 'idle')
+    this._setStatus('TOCA A VOX PARA HABLAR', 'idle')
+    if (this.mascot) this.mascot.setState('idle')
     this.clearModelInfo()
     if (this.elements.btn) this.elements.btn.classList.remove('recording')
     if (this.elements.btnStop) this.elements.btnStop.classList.remove('visible')
@@ -174,11 +184,13 @@ class UIManager {
 
   setSpeaking() {
     this._setStatus('HABLANDO', 'speaking')
+    if (this.mascot) this.mascot.setState('speaking')
     if (this.elements.btnStop) this.elements.btnStop.classList.add('visible')
   }
 
   setError(msg) {
     this._setStatus(msg || 'ERROR', 'error')
+    if (this.mascot) this.mascot.setState('error')
     if (this.elements.levelMeter) this.elements.levelMeter.classList.remove('visible')
     if (this.elements.btnStop) this.elements.btnStop.classList.remove('visible')
     if (this.elements.window) {

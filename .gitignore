@@ -5,3 +5,9 @@ __pycache__/
 *.pyc
 *.log
 .DS_Store
+# Modelo de voz Vosk (~40MB): no se versiona, se baja con `npm run setup`
+src/main/vosk-model/
+# Artefactos de release
+*.exe
+*.blockmap
+latest*.yml

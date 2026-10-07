@@ -216,6 +216,12 @@
       display: flex; flex-direction: column; align-items: center;
       gap: 8px; padding: 4px 0 0;
     }
+    .mascot-stage { display: flex; flex-direction: column; align-items: center; padding-top: 2px; }
+    #mascot-canvas { width: 132px; height: 96px; }
+    .mascot-name {
+      font-size: 9px; font-weight: 700; letter-spacing: 3px;
+      color: rgba(79,195,247,0.5); margin-top: -6px;
+    }
 
     .bottom-row {
       display: flex; align-items: center; justify-content: space-between;
@@ -402,9 +408,13 @@
       <div class="scroll-area" id="scroll-area">
         <div id="history"></div>
         <div id="transcript" class="transcript"></div>
-        <div id="response" class="response"></div>
+        <div id="response" class="response">¡Hola! Soy Vox. Tócame o dime «asistente» y te ayudo.</div>
       </div>
       <div class="content-footer">
+        <div class="mascot-stage">
+          <canvas id="mascot-canvas" width="264" height="192" title="Tócame para hablar"></canvas>
+          <div class="mascot-name">VOX</div>
+        </div>
         <div class="level-meter" id="level-meter">
           <canvas id="level-canvas"></canvas>
           <span class="vad-label idle" id="vad-label">INACTIVO</span>
@@ -506,6 +516,7 @@
     </div>
   </div>
 
+  <script src="src/renderer/mascot.js"></script>
   <script src="src/renderer/voice.js"></script>
   <script src="src/renderer/ui.js"></script>
   <script src="src/renderer/settings.js"></script>

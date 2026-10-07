@@ -69,6 +69,11 @@ Lee la [Política de Privacidad](PRIVACY.md). Resumen:
 - Cuando la IA genera código PowerShell, la app te pide confirmación si detecta una operación peligrosa.
 - **Usa la ejecución de comandos solo si entiendes qué hace.**
 
+## Desarrollo
+
+- `npm install` y `npm run setup` (descarga el modelo de voz, ~40 MB, solo una vez).
+- `npm start` para probar. `npm test` corre las pruebas. `npm run build` genera instalador + portable.
+
 ## Licencia
 
 Privado hasta nuevo aviso. Contacta al autor para uso comercial.
