@@ -39,6 +39,31 @@ const ALIASES = {
 const GREETINGS = /^(hola|oye|hey|eh|ei|oiga|disculpa|perdona|por favor|buenas)\s+/i
 
 class CommandParser {
+  // Parte por separadores SIN romper lo que va entre comillas.
+  // ("di "pan y queso" y qué hora es" -> 2 partes, no 3)
+  splitCommands(text, sep) {
+    if (!text) return []
+    const spans = []
+    let cur = '', inQ = false, qc = null
+    for (const ch of text) {
+      if (!inQ && (ch === '"' || ch === "'")) {
+        if (cur) spans.push({ t: cur, q: false })
+        cur = ch; inQ = true; qc = ch
+      } else if (inQ && ch === qc) {
+        cur += ch; spans.push({ t: cur, q: true }); cur = ''; inQ = false
+      } else cur += ch
+    }
+    if (cur) spans.push({ t: cur, q: inQ })
+    const out = ['']
+    for (const s of spans) {
+      if (s.q) { out[out.length - 1] += s.t; continue }
+      const bits = s.t.split(sep)
+      out[out.length - 1] += bits[0]
+      for (let i = 1; i < bits.length; i++) out.push(bits[i])
+    }
+    return out.map(x => x.trim()).filter(Boolean)
+  }
+
   parse(transcript) {
     if (!transcript) return null
     let text = transcript.toLowerCase().trim()

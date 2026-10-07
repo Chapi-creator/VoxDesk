@@ -151,8 +151,9 @@ async function _handleOne(transcript, _depth = 0) {  if (!transcript) return { s
 
   const SEP_SPLIT = /(?:\s+y\s+|\s+y\s+luego\s+|\s+luego\s+|\s+despu[ée]s\s+)/i
   const BROWSER_SITE = /^(?:puedes\s+)?(?:abre|abrir|abreme)\s+(?:el\s+|la\s+)?(?:navegador\s+)?(?:(?:google\s+)?chrome|(?:microsoft\s+)?edge|(?:mozilla\s+)?firefox|brave|msedge)\b.*\b(pon|poner|abre|abrir|dime|mete|abreme)\b.+/i
-  if (SEP_SPLIT.test(t) && !AI_KEYWORD.test(transcript) && !BROWSER_SITE.test(t)) {
-    const parts = t.split(SEP_SPLIT).map(s => s.trim()).filter(Boolean)
+  // Fase 5: split sin romper comillas ("di "pan y queso" y qué hora es" -> 2 partes)
+  const parts = parser.splitCommands(t, SEP_SPLIT)
+  if (parts.length > 1 && !AI_KEYWORD.test(transcript) && !BROWSER_SITE.test(t)) {
     if (parts.length > 1) {
       const messages = []
       let allOk = true

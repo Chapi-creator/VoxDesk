@@ -92,6 +92,7 @@ const PATTERNS = [
   { match: /cierra\s+todo|mata\s+todo|cerrar\s+todo/i,
     run: `Get-Process | Where-Object { $_.MainWindowTitle -ne '' } | Where-Object { $_.ProcessName -notin @('explorer','taskmgr','ApplicationFrameHost') } | Stop-Process -Force`,
     confirm: 'Cerrar todas las ventanas',
+    priority: 10,
     msg: 'Cerrando todo' },
 
   // --- MOUSE CONTROL ---
@@ -491,6 +492,7 @@ const PATTERNS = [
     msg: 'Reiniciando en 20 segundos' },
   { match: /cancela\s+(el\s+)?(apagado|reinicio)/i,
     run: `shutdown /a`,
+    priority: 10,
     msg: 'Apagado cancelado' },
 
   // --- SYSTEM INFO (capture patterns — return PS output) ---
@@ -516,18 +518,21 @@ const PATTERNS = [
     run: `Get-Service | Where Status -eq Running | Select -First 30 Name,DisplayName,Status | Format-Table -AutoSize -Wrap | Out-String -Width 4096`,
     capture: true,
     msg: 'Listando servicios' },
-  { match: /inicia\s+(el\s+)?(servicio\s+)?(.+)/i,
-    run: (m) => `Start-Service '${escapePs(m[3])}' -ErrorAction SilentlyContinue; if ($?) { 'Iniciado' } else { 'Error al iniciar' }`,
-    confirm: (m) => `Iniciar el servicio ${m[3]}`,
-    msg: (m) => `Iniciando servicio ${m[3]}` },
-  { match: /(det[eé]n|detiene|para|apaga)\s+(el\s+)?(servicio\s+)?(.+)/i,
-    run: (m) => `Stop-Service '${escapePs(m[4])}' -Force -ErrorAction SilentlyContinue; if ($?) { 'Detenido' } else { 'Error al detener' }`,
-    confirm: (m) => `Detener el servicio ${m[4]}`,
-    msg: (m) => `Deteniendo servicio ${m[4]}` },
-  { match: /reinicia\s+(el\s+)?(servicio\s+)?(.+)/i,
-    run: (m) => `Restart-Service '${escapePs(m[3])}' -Force -ErrorAction SilentlyContinue; if ($?) { 'Reiniciado' } else { 'Error al reiniciar' }`,
-    confirm: (m) => `Reiniciar el servicio ${m[3]}`,
-    msg: (m) => `Reiniciando servicio ${m[3]}` },
+  { match: /inicia\s+(el\s+)?servicio\s+(.+)/i,
+    run: (m) => `Start-Service '${escapePs(m[2])}' -ErrorAction SilentlyContinue; if ($?) { 'Iniciado' } else { 'Error al iniciar' }`,
+    confirm: (m) => `Iniciar el servicio ${m[2]}`,
+    priority: 10,
+    msg: (m) => `Iniciando servicio ${m[2]}` },
+  { match: /(det[eé]n|detiene|para|apaga)\s+(el\s+)?servicio\s+(.+)/i,
+    run: (m) => `Stop-Service '${escapePs(m[3])}' -Force -ErrorAction SilentlyContinue; if ($?) { 'Detenido' } else { 'Error al detener' }`,
+    confirm: (m) => `Detener el servicio ${m[3]}`,
+    priority: 10,
+    msg: (m) => `Deteniendo servicio ${m[3]}` },
+  { match: /reinicia\s+(el\s+)?servicio\s+(.+)/i,
+    run: (m) => `Restart-Service '${escapePs(m[2])}' -Force -ErrorAction SilentlyContinue; if ($?) { 'Reiniciado' } else { 'Error al reiniciar' }`,
+    confirm: (m) => `Reiniciar el servicio ${m[2]}`,
+    priority: 10,
+    msg: (m) => `Reiniciando servicio ${m[2]}` },
 
   // --- MEMORY ---
   { match: /recuerda\s+que\s+(.+?)\s+es\s+(.+)/i,
@@ -700,6 +705,7 @@ public class MK {
     },
     capture: true,
     confirm: (m) => `Apagar el equipo en ${m[1] || m[3]} ${(m[2] || m[4] || 'segundos')}`,
+    priority: 10,
     msg: (m) => `Apagando en ${m[1] || m[3]} ${(m[2] || m[4] || 'segundos')}` },
   { match: /cancela\s+(el\s+)?apagado|cancela\s+(el\s+)?reinicio|aborta\s+(el\s+)?shutdown/i,
     run: `shutdown /a; Write-Output 'Apagado cancelado'`,
@@ -1277,7 +1283,8 @@ function runPsCapture(psCode) {
 }
 
 async function execute(text) {
-  const segments = text.split(SEP).map(s => s.trim()).filter(Boolean)
+  const parser = require('./command-parser')
+  const segments = parser.splitCommands(text, SEP)
   if (segments.length > 1) {
     const results = []
     for (const seg of segments) {
@@ -1295,45 +1302,79 @@ async function execute(text) {
   return result
 }
 
-async function matchOne(text) {
-  // Check custom commands first (user-taught patterns)
+// Fase 5: ruteo por prioridad, no por orden físico.
+// Todos los patrones que matchean compiten; gana `priority` mayor.
+// p.priority: 10 = específico (cancela apagado > apaga), 0 = genérico (default).
+function route(text) {
+  const hits = []
+  for (const p of PATTERNS) {
+    const m = text.match(p.match)
+    if (m) hits.push({ pattern: p, match: m })
+  }
+  hits.sort((a, b) => (b.pattern.priority || 0) - (a.pattern.priority || 0))
+  return hits
+}
+
+function labelOf(p) {
+  if (p.confirm && typeof p.confirm === 'string') return p.confirm
+  if (typeof p.msg === 'string') return p.msg
+  return 'esta acción'
+}
+
+// hits debe venir ordenado (ver route). Si empatan acciones distintas en la
+// cima y hay riesgo (prioridad > 0 o patrón delicado), se pregunta en vez de
+// ejecutar a ciegas. Empates genéricos sin riesgo = primero (como antes).
+function pickBest(hits) {
+  if (!hits.length) return null
+  const top = hits[0].pattern.priority || 0
+  const tied = hits.filter(h => (h.pattern.priority || 0) === top)
+  const labels = [...new Set(tied.map(h => labelOf(h.pattern)))]
+  if (labels.length > 1 && (top > 0 || tied.some(h => h.pattern.confirm))) {
+    return { ask: labels.slice(0, 3) }
+  }
+  return { hit: hits[0] }
+}
+
+async function matchOne(text) {  // Check custom commands first (user-taught patterns)
   const custom = memory.matchCustom(text)
   if (custom) {
     const msg = `${custom.reply || 'Ejecutando'}: ${custom.action}`
     return { success: true, message: msg, speak: true }
   }
 
-  for (const p of PATTERNS) {
-    const m = text.match(p.match)
-    if (m) {
-      if (p.confirm) {
-        const ok = await _confirm(typeof p.confirm === 'function' ? p.confirm(m) : p.confirm, text)
-        if (!ok) return { success: true, message: 'Cancelado. ¿Necesitas algo más?', speak: true }
-      }
-      // Handler pattern — JS-only, no PS needed
-      if (p.handler) {
-        try {
-          const result = await p.handler(m)
-          const isObj = typeof result === 'object' && result !== null
-          const msg = isObj ? (result.message || 'Hecho') : (result || 'Hecho')
-          const ok = isObj ? (result.success !== false) : true
-          return { success: ok, message: msg, speak: ok, ...(isObj ? { _macro: result._macro } : {}), _tts: tts.isAvailable() }
-        } catch (e) {
-          logger.error('Handler error:', e.message)
-          return { success: false, message: 'Error: ' + e.message }
-        }
-      }
-
-      const psCode = typeof p.run === 'function' ? await p.run(m) : p.run
-      if (p.capture) {
-        const output = await runPsCapture(psCode)
-        return { success: true, message: output || 'Hecho', speak: true, _psCode: psCode, _capture: true, _tts: tts.isAvailable() }
-      }
-      await runPs(psCode)
-      return { success: true, message: typeof p.msg === 'function' ? p.msg(m) : p.msg, speak: true, _psCode: psCode, _tts: tts.isAvailable() }
+  const hits = route(text)
+  if (!hits.length) return null
+  const pick = pickBest(hits)
+  if (pick.ask) {
+    return { success: true, message: `Escuché "${text}". ¿Quisiste decir: ${pick.ask.join(' / ')}? Repite tu comando.`, speak: true }
+  }
+  const p = pick.hit.pattern
+  const m = pick.hit.match
+  if (p.confirm) {
+    const ok = await _confirm(typeof p.confirm === 'function' ? p.confirm(m) : p.confirm, text)
+    if (!ok) return { success: true, message: 'Cancelado. ¿Necesitas algo más?', speak: true }
+  }
+  // Handler pattern — JS-only, no PS needed
+  if (p.handler) {
+    try {
+      const result = await p.handler(m)
+      const isObj = typeof result === 'object' && result !== null
+      const msg = isObj ? (result.message || 'Hecho') : (result || 'Hecho')
+      const ok = isObj ? (result.success !== false) : true
+      return { success: ok, message: msg, speak: ok, ...(isObj ? { _macro: result._macro } : {}), _tts: tts.isAvailable() }
+    } catch (e) {
+      logger.error('Handler error:', e.message)
+      return { success: false, message: 'Error: ' + e.message }
     }
   }
-  return null
+
+  const psCode = typeof p.run === 'function' ? await p.run(m) : p.run
+  if (p.capture) {
+    const output = await runPsCapture(psCode)
+    return { success: true, message: output || 'Hecho', speak: true, _psCode: psCode, _capture: true, _tts: tts.isAvailable() }
+  }
+  await runPs(psCode)
+  return { success: true, message: typeof p.msg === 'function' ? p.msg(m) : p.msg, speak: true, _psCode: psCode, _tts: tts.isAvailable() }
 }
 
 function getHelp() {
@@ -1489,4 +1530,4 @@ function saveHistory(query, result) {
   } catch {}
 }
 
-module.exports = { execute, getHelp, setConfirm }
+module.exports = { execute, getHelp, setConfirm, route, pickBest }

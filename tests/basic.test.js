@@ -150,6 +150,57 @@ test('permite texto normal', () => {
   assert.equal(guard.isDangerous('qué hora es'), false)
 })
 
+console.log('\nsmart-exec route/pickBest (Fase 5, sin ejecutar nada)')
+const smart = require('../src/main/smart-exec')
+
+test('route: cancela el apagado gana a apaga', () => {
+  const hits = smart.route('cancela el apagado')
+  assert.ok(hits.length >= 2, 'debe matchear ambos patrones')
+  assert.equal(hits[0].pattern.msg, 'Apagado cancelado')
+})
+
+test('route: reinicia el servicio gana a reiniciar equipo', () => {
+  const top = smart.route('reinicia el servicio de audio')[0]
+  assert.equal(typeof top.pattern.msg, 'function')
+  assert.ok(top.pattern.msg(top.match).includes('servicio'))
+})
+
+test('route: cierra todo usa el patron real', () => {
+  const top = smart.route('cierra todo')[0]
+  assert.equal(top.pattern.msg, 'Cerrando todo')
+  assert.ok(top.pattern.run.includes('MainWindowTitle'), 'no debe ser stopProcess(todo)')
+})
+
+test('route: apagate en N programa apagado', () => {
+  const top = smart.route('apágate en 5 minutos')[0]
+  assert.ok(top.pattern.confirm(top.match).includes('5'), top.pattern.confirm(top.match))
+})
+
+test('route: apaga el equipo sigue apagando', () => {
+  const top = smart.route('apaga el equipo')[0]
+  assert.equal(top.pattern.msg({ 4: null }), 'Apagando en 30 segundos')
+})
+
+test('pickBest: empate riesgoso pregunta', () => {
+  const r = smart.pickBest([
+    { pattern: { msg: 'A', priority: 5 }, match: [] },
+    { pattern: { msg: 'B', priority: 5 }, match: [] },
+  ])
+  assert.ok(r.ask && r.ask.length === 2)
+})
+
+test('pickBest: empate generico sin riesgo mantiene el primero', () => {
+  const h = { pattern: { msg: 'A' }, match: [] }
+  const r = smart.pickBest([h, { pattern: { msg: 'B' }, match: [] }])
+  assert.equal(r.hit, h)
+})
+
+test('splitCommands: no parte dentro de comillas', () => {
+  const parts = parser.splitCommands('di "pan y queso" y qué hora es', /(?:\s+y\s+)/i)
+  assert.equal(parts.length, 2)
+  assert.equal(parts[0], 'di "pan y queso"')
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }
