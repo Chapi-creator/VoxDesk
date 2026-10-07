@@ -3,8 +3,12 @@
   const ui = new UIManager()
   const settings = new SettingsManager()
   const guide = new GuideManager()
-  const onboarding = document.getElementById('onboarding')
-  const startBtn = document.getElementById('btn-start')
+  const ob = new OnboardingManager()
+  ob.onTry = (text) => handleCommand(text)
+
+  window.api.getPreference('onboarding_done').then(done => {
+    if (!done) ob.start(() => window.api.setPreference('onboarding_done', '1'))
+  })
 
   let _thinkTimer = null
   let _idleTimer = null
@@ -113,20 +117,7 @@
     window.api.toggleWake()
   })
 
-  window.api.getPreference('onboarding_done').then(done => {
-    if (!done && onboarding) {
-      onboarding.classList.add('open')
-      startBtn?.addEventListener('click', () => {
-        onboarding.classList.remove('open')
-        window.api.setPreference('onboarding_done', '1')
-      })
-      ui.onToggle = (orig => function() {
-        onboarding.classList.remove('open')
-        window.api.setPreference('onboarding_done', '1')
-        return orig.apply(this, arguments)
-      })(ui.onToggle)
-    }
-  })
+  guide.onSelect = (text) => handleCommand(text)
 
   ui.init()
   settings.init()

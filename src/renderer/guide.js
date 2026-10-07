@@ -2,6 +2,9 @@ class GuideManager {
   constructor() {
     this.open = false
     this.elements = {}
+    this.onSelect = null // (texto) => ejecuta un comando de ejemplo
+    // ponytail: solo ejemplos locales y seguros, nada que toque red o sistema
+    this.tryItems = ['di hola vox', 'qué hora es', 'qué fecha es', 'ayuda']
   }
 
   async init() {
@@ -20,6 +23,20 @@ class GuideManager {
     }
 
     this.elements.list.innerHTML = ''
+    const tryHeader = document.createElement('div')
+    tryHeader.className = 'guide-group'
+    tryHeader.innerHTML = '<strong>Toca para probar</strong>'
+    this.elements.list.appendChild(tryHeader)
+    for (const t of this.tryItems) {
+      const div = document.createElement('div')
+      div.className = 'guide-item try'
+      div.innerHTML = `<span class="cmd">${t}</span><span class="desc"></span>`
+      div.addEventListener('click', () => {
+        this.close()
+        if (this.onSelect) this.onSelect(t)
+      })
+      this.elements.list.appendChild(div)
+    }
     const header = document.createElement('div')
     header.className = 'guide-group'
     header.innerHTML = '<strong>Comandos básicos</strong>'
