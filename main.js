@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, globalShortcut, Tray, Menu, nativeImage, dialog } = require('electron')
+const { app, BrowserWindow, ipcMain, globalShortcut, Tray, Menu, nativeImage, dialog, shell } = require('electron')
 const { autoUpdater } = require('electron-updater')
 const path = require('path')
 const http = require('http')
@@ -141,7 +141,7 @@ async function confirmDestructive(title, detail) {
 smartExec.setConfirm(confirmDestructive)
 systemCmds.setConfirm(confirmDestructive)
 
-async function _handleOne(transcript, _depth = 0) {  if (!transcript) return { success: false, message: 'No te escuché' }
+async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!transcript) return { success: false, message: 'No te escuché' }
   if (_depth > 5) return { success: false, message: 'Demasiadas macros anidadas' }
 
   const _cfg = config.load()
@@ -174,6 +174,29 @@ async function _handleOne(transcript, _depth = 0) {  if (!transcript) return { s
       }
       if (allOk && messages.length) return { success: true, message: messages.join('. '), speak: true }
     }
+  }
+
+  // Fase 13: contexto — pronombres sobre lo último hecho ("analiza eso").
+  const _ctx = memory.get('vox_ctx') || {}
+  const _refVerb = t.match(/^(analiza|explica|explícame|explicitame|resume|traduce)\s+(eso|esto|lo anterior|lo)$/i)
+    || t.match(/^(analiza|explica|resume|explícame|explicitame)$/i)
+    || t.match(/^(y\s+)?eso\s+(que significa|qué significa|qué es)$/i)
+  if (_refVerb) {
+    if (!_ctx.lastResult) {
+      return { success: false, message: 'Aún no hice nada. Pídeme algo primero y luego me preguntas sobre eso.', speak: true }
+    }
+    if (!(_cfg.provider === 'local' || _cfg.apiKey)) {
+      return { success: true, message: `Lo último fue: "${_ctx.lastAction}". Configura una IA en Ajustes y te lo explico.`, speak: true }
+    }
+    const answer = await llm.ask(`Contexto:\nAcción: ${_ctx.lastAction}\nResultado: ${_ctx.lastResult}\n\nEl usuario dice: "${t}". Responde sobre ese contexto, español breve.`)
+    if (answer) return await _processLlmAnswer(answer)
+    return { success: false, message: 'No pude explicarlo.', speak: true }
+  }
+  if (/^(rep[ií]telo|repite eso|otra vez|de nuevo)$/i.test(t)) {
+    if (!_ctx.lastAction) {
+      return { success: false, message: 'No hay nada que repetir todavía.', speak: true }
+    }
+    return await _handleOne(_ctx.lastAction, _depth + 1)
   }
 
   const parsed = parser.parse(t)
@@ -214,6 +237,18 @@ async function _handleOne(transcript, _depth = 0) {  if (!transcript) return { s
       return { success: true, message: 'Macro ejecutada', speak: true }
     }
     return smartResult
+  }
+
+  // Fase 13: fuzzy — entiende aunque la frase varíe ("apaga la compu").
+  // Alta confianza ejecuta vía frase canónica; media pregunta; baja sigue al LLM.
+  if (!_fromFuzzy) {
+    const fz = understand.route(t)
+    if (fz && fz.conf >= understand.HI) {
+      return await _handleOne(fz.canon + (fz.args ? ' ' + fz.args : ''), _depth + 1, true)
+    }
+    if (fz && fz.conf >= understand.MID) {
+      return { success: true, message: `¿Quisiste decir "${fz.canon}"? Dilo así y lo hago.`, speak: true }
+    }
   }
 
   if (_cfg.provider === 'local' || _cfg.apiKey) {
@@ -281,6 +316,62 @@ ipcMain.handle('llm:ask', async (_event, prompt) => {
 
 ipcMain.handle('llm:models', async (_event, apiKey, provider) => {
   return await llm.listModels(apiKey, provider)
+})
+
+ipcMain.handle('llm:validate', (_event, key, provider, apiUrl) => {
+  return llm.validateKey(provider, key, apiUrl)
+})
+
+const OPEN_URLS = ['https://aistudio.google.com/', 'https://ollama.com/download']
+ipcMain.handle('open:url', (_event, url) => {
+  if (OPEN_URLS.some(u => String(url || '').startsWith(u))) shell.openExternal(url)
+  return true
+})
+
+// Fase 13: Ollama guiado — descargar, verificar, bajar modelo. Nada silencioso.
+ipcMain.handle('ollama:status', async () => {
+  const out = { installed: false, version: '', models: [] }
+  try {
+    const ver = await new Promise((resolve) => {
+      exec('ollama --version', { timeout: 10000 }, (err, stdout) => resolve(err ? '' : (stdout || '').trim()))
+    })
+    if (!ver) return out
+    out.installed = true
+    out.version = ver
+    const models = await new Promise((resolve) => {
+      exec('ollama list', { timeout: 15000 }, (err, stdout) => resolve(err ? '' : (stdout || '')))
+    })
+    out.models = models.split('\n').slice(1).map(l => l.trim().split(/\s+/)[0]).filter(n => n && n !== 'NAME')
+  } catch {}
+  return out
+})
+
+ipcMain.handle('ollama:install', async () => {
+  const exe = path.join(os.tmpdir(), 'OllamaSetup.exe')
+  if (!fs.existsSync(exe)) {
+    await new Promise((resolve, reject) => {
+      const https = require('https')
+      const file = fs.createWriteStream(exe)
+      https.get('https://ollama.com/download/OllamaSetup.exe', (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          https.get(res.headers.location, (r2) => { r2.pipe(file); file.on('finish', () => { file.close(); resolve() }) }).on('error', reject)
+          return
+        }
+        res.pipe(file)
+        file.on('finish', () => { file.close(); resolve() })
+      }).on('error', reject)
+    })
+  }
+  shell.openPath(exe)
+  return true
+})
+
+ipcMain.handle('ollama:pull', async (_event, model) => {
+  const m = String(model || 'qwen2.5:1.5b').trim() || 'qwen2.5:1.5b'
+  exec(`ollama pull ${m}`, { timeout: 30 * 60000, maxBuffer: 10 * 1024 * 1024 }, (err) => {
+    if (mainWindow) mainWindow.webContents.send('ollama:pull-done', { model: m, ok: !err })
+  })
+  return true
 })
 
 ipcMain.handle('llm:clear', () => {
@@ -366,6 +457,14 @@ async function handleAndTrack(transcript, depth = 0) {
       mood.addMood(-3)
     }
     mood.pushCmdTime()
+    // Fase 13: contexto para pronombres (las meta-órdenes no pisan lo referido).
+    const _isMeta = /^(rep[ií]telo|repite eso|otra vez|de nuevo)$/i.test(transcript)
+      || /^(analiza|explica|explícame|explicitame|resume|traduce)\s+(eso|esto|lo anterior|lo)$/i.test(transcript)
+      || /^(analiza|explica|resume|explícame|explicitame)$/i.test(transcript)
+      || /^(y\s+)?eso\s+(que significa|qué significa|qué es)$/i.test(transcript)
+    if (!_isMeta) {
+      memory.set('vox_ctx', { lastAction: transcript, lastResult: String((r && r.message) || '').slice(0, 2000), at: Date.now() })
+    }
   } catch {}
   return r
 }
@@ -400,6 +499,7 @@ wake.onError = (error) => {
 }
 
 const agent = require('./src/main/agent')
+const understand = require('./src/main/understand')
 
 async function runAgent(goal) {
   const res = await agent.run(goal, {

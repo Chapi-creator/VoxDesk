@@ -73,6 +73,16 @@
       </div>
       <div class="settings-section">
         <div class="settings-section-title">Inteligencia Artificial</div>
+        <div class="status-msg" id="settings-ai-hint">Sin IA Vox solo obedece comandos. Con IA razona y explica.</div>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <button class="btn-start" id="btn-ai-key" style="flex:1">Guía: key gratis</button>
+          <button class="btn-start" id="btn-ai-local" style="flex:1">Usar Ollama local</button>
+        </div>
+        <div class="status-msg" id="settings-ollama-status"></div>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <button class="btn-start" id="btn-ollama-dl" style="flex:1">Descargar Ollama</button>
+          <button class="btn-start" id="btn-ollama-pull" style="flex:1">Bajar modelo</button>
+        </div>
         <label>Proveedor</label>
         <select id="settings-provider">
           <option value="gemini">Google Gemini</option>

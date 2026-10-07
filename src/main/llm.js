@@ -141,8 +141,15 @@ const PROVIDERS = {
   }
 }
 
-function validateKey(provider, key) {
+function isPrivateUrl(url) {
+  return /^(https?:\/\/)?(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i.test(url || '')
+}
+
+function validateKey(provider, key, apiUrl) {
   if (provider === 'local') return null
+  const base = apiUrl || (PROVIDERS[provider] && PROVIDERS[provider].baseUrl) || ''
+  // Fase 13: servidores caseros (Ollama, LM Studio, llama.cpp) no piden key.
+  if ((!key || key.length < 8) && isPrivateUrl(base)) return null
   if (!key || typeof key !== 'string') return 'API key requerida'
   if (provider === 'gemini' && !key.startsWith('AIza')) return 'Gemini key debe empezar con "AIza"'
   if (provider === 'claude' && !key.startsWith('sk-ant-')) return 'Claude key debe empezar con "sk-ant-"'
@@ -153,9 +160,26 @@ function validateKey(provider, key) {
 function addToHistory(role, content) {
   conversationHistory.push({ role, content })
   while (conversationHistory.length > MAX_HISTORY) conversationHistory.shift()
+  // Fase 13: el historial sobrevive reinicios.
+  try { require('./memory').set('vox_hist', conversationHistory.slice(-MAX_HISTORY)) } catch {}
 }
 
-function clearHistory() { conversationHistory.length = 0 }
+function clearHistory() {
+  conversationHistory.length = 0
+  try { require('./memory').set('vox_hist', []) } catch {}
+}
+
+let _histLoaded = false
+function ensureHistory() {
+  if (_histLoaded) return
+  _histLoaded = true
+  try {
+    const saved = require('./memory').get('vox_hist')
+    if (Array.isArray(saved) && saved.length) {
+      conversationHistory.push(...saved.slice(-MAX_HISTORY))
+    }
+  } catch {}
+}
 
 const KNOWN_MODELS = {
   gemini: [
@@ -255,6 +279,7 @@ async function listModels(apiKey, providerName) {
 }
 
 async function ask(prompt) {
+  ensureHistory()
   const cfg = config.load()
   const providerName = cfg.provider || 'gemini'
   if (providerName !== 'local' && !cfg.apiKey) return ''

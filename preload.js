@@ -11,6 +11,14 @@ contextBridge.exposeInMainWorld('api', {
   saveConfig: (data) => ipcRenderer.invoke('config:save', data),
   askLlm: (prompt) => ipcRenderer.invoke('llm:ask', prompt),
   listModels: (apiKey, provider) => ipcRenderer.invoke('llm:models', apiKey, provider),
+  validateKey: (key, provider, apiUrl) => ipcRenderer.invoke('llm:validate', key, provider, apiUrl),
+  openUrl: (url) => ipcRenderer.invoke('open:url', url),
+  ollamaStatus: () => ipcRenderer.invoke('ollama:status'),
+  ollamaInstall: () => ipcRenderer.invoke('ollama:install'),
+  ollamaPull: (model) => ipcRenderer.invoke('ollama:pull', model),
+  onOllamaPullDone: (callback) => {
+    ipcRenderer.on('ollama:pull-done', (_event, data) => callback(data))
+  },
   clearLlmHistory: () => ipcRenderer.invoke('llm:clear'),
   getHelp: () => ipcRenderer.invoke('help:get'),
   minimizeWindow: () => ipcRenderer.invoke('window:minimize'),

@@ -21,6 +21,11 @@ class SettingsManager {
     this.elements.proactivity = document.getElementById('settings-proactivity')
     this.elements.voice = document.getElementById('settings-voice')
     this.elements.saveBtn = document.getElementById('btn-settings-save')
+    this.elements.aiKeyBtn = document.getElementById('btn-ai-key')
+    this.elements.aiLocalBtn = document.getElementById('btn-ai-local')
+    this.elements.ollamaDlBtn = document.getElementById('btn-ollama-dl')
+    this.elements.ollamaPullBtn = document.getElementById('btn-ollama-pull')
+    this.elements.ollamaStatus = document.getElementById('settings-ollama-status')
     this.elements.status = document.getElementById('settings-status')
     this.elements.gearBtn = document.getElementById('btn-gear')
     this.elements.backBtn = document.getElementById('btn-settings-back')
@@ -66,6 +71,25 @@ class SettingsManager {
     this.elements.gearBtn.addEventListener('click', () => this.toggle())
     this.elements.backBtn.addEventListener('click', () => this.close())
     this.elements.saveBtn.addEventListener('click', () => this.save())
+    if (this.elements.aiKeyBtn) this.elements.aiKeyBtn.addEventListener('click', () => window.api.openUrl('https://aistudio.google.com/'))
+    if (this.elements.aiLocalBtn) this.elements.aiLocalBtn.addEventListener('click', () => {
+      this.elements.provider.value = 'local'
+      this._toggleUrlField()
+      this._fetchModels()
+      this._refreshOllama()
+    })
+    if (this.elements.ollamaDlBtn) this.elements.ollamaDlBtn.addEventListener('click', async () => {
+      this.elements.ollamaStatus.textContent = 'Descargando instalador… complétalo y vuelve.'
+      await window.api.ollamaInstall()
+    })
+    if (this.elements.ollamaPullBtn) this.elements.ollamaPullBtn.addEventListener('click', async () => {
+      const model = this.elements.model.value || 'qwen2.5:1.5b'
+      this.elements.ollamaStatus.textContent = `Bajando ${model}… tarda varios minutos.`
+      await window.api.ollamaPull(model)
+    })
+    if (window.api.onOllamaPullDone) window.api.onOllamaPullDone((r) => {
+      this.elements.ollamaStatus.textContent = r.ok ? `Modelo ${r.model} listo.` : 'Falló la descarga del modelo.'
+    })
     this.elements.provider.addEventListener('change', () => { this._toggleUrlField(); this._fetchModels() })
     this.elements.apiKey.addEventListener('input', () => this._fetchModels())
     this._toggleUrlField()
@@ -109,8 +133,21 @@ class SettingsManager {
     this.elements.saveBtn.textContent = 'Guardar'
     this.elements.saveBtn.classList.remove('saved')
     this._toggleUrlField()
+    this._refreshOllama()
     const p = this.elements.provider.value
     if (p === 'local' || this.elements.apiKey.value.trim()) await this._fetchModels()
+  }
+
+  async _refreshOllama() {
+    if (!this.elements.ollamaStatus || !window.api.ollamaStatus) return
+    try {
+      const st = await window.api.ollamaStatus()
+      this.elements.ollamaStatus.textContent = !st.installed
+        ? 'Ollama no detectado.'
+        : `Ollama ${st.version} · modelos: ${st.models.length ? st.models.join(', ') : 'ninguno'}.`
+    } catch {
+      this.elements.ollamaStatus.textContent = ''
+    }
   }
 
   close() {
@@ -144,6 +181,7 @@ class SettingsManager {
       this.elements.status.textContent = 'Solo letras permitidas en la palabra de activación'
       return
     }
+    const keyWarn = await window.api.validateKey(this.elements.apiKey.value.trim(), this.elements.provider.value, this.elements.apiUrl.value.trim()).catch(() => null)
     const data = {
       apiKey: this.elements.apiKey.value.trim(),
       provider: this.elements.provider.value,
@@ -176,7 +214,8 @@ class SettingsManager {
     }
     this.elements.saveBtn.textContent = '✓ Guardado'
     this.elements.saveBtn.classList.add('saved')
-    this.elements.status.textContent = data.apiKey ? `Configuración de ${data.provider} guardada.` : 'Sin API key. Solo comandos básicos.'
+    const base = data.apiKey || data.provider === 'local' ? `Configuración de ${data.provider} guardada.` : 'Sin API key. Solo comandos básicos.'
+    this.elements.status.textContent = keyWarn ? `${keyWarn} (${base})` : base
     setTimeout(() => {
       this.elements.saveBtn.textContent = 'Guardar'
       this.elements.saveBtn.classList.remove('saved')

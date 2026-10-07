@@ -429,6 +429,34 @@ test('reportText resume en una línea', () => {
   assert.ok(t.includes('120.5 GB'))
 })
 
+console.log('\nentender (Fase 13, puro)')
+const understand = require('../src/main/understand')
+
+test('normalize quita tildes y sinonimos', () => {
+  assert.equal(understand.normalize('Apagá la compú!'), 'apaga la equipo')
+})
+
+test('route: apaga la compu -> apaga', () => {
+  const r = understand.route('apaga la compu')
+  assert.equal(r.id, 'apaga')
+  assert.ok(r.conf >= understand.HI, r.conf)
+  assert.equal(r.canon, 'apaga el equipo')
+})
+
+test('route: frase rara da baja confianza', () => {
+  const r = understand.route('el ornitorrinco baila tango')
+  assert.ok(!r || r.conf < understand.MID, r && r.conf)
+})
+
+test('validateKey acepta vacía en LAN', () => {
+  const llm = require('../src/main/llm')
+  assert.equal(llm.validateKey('x', '', 'http://127.0.0.1:1234/v1'), null)
+  assert.equal(llm.validateKey('x', '', 'http://192.168.1.50:11434/v1'), null)
+  assert.ok(llm.validateKey('gemini', '', 'https://generativelanguage.googleapis.com/v1beta'))
+  assert.ok(llm.validateKey('gemini', 'corta'))
+  assert.equal(llm.validateKey('gemini', 'AIza123456789'), null)
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }
