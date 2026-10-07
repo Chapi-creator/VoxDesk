@@ -7,6 +7,8 @@ const memory = require('./memory')
 const logger = require('./logger')
 const email = require('./email')
 const { runPs } = require('./run-ps')
+const fun = require('./fun')
+const mood = require('./mood')
 
 
 // Fase 3: main.js inyecta el diálogo real con setConfirm. Sin inyectar, auto-sí (tests).
@@ -532,7 +534,15 @@ const PATTERNS = [
     msg: (m) => `Reiniciando servicio ${m[2]}` },
 
   // --- MEMORY ---
-  { match: /recuerda\s+que\s+(.+?)\s+es\s+(.+)/i,
+  { match: /me llamo\s+(.+)/i,
+    handler: (m) => { const n = m[1].trim().replace(/[.!,]+$/, ''); mood.setName(n); return `¡Hola ${n}! Ya te recuerdo.` },
+    msg: 'Aprendiendo tu nombre' },
+  { match: /cu[eé]ntame un chiste|dime un chiste|\bchiste\b/i,
+    handler: () => fun.joke(),
+    msg: 'Contando chiste' },
+  { match: /cu[eé]ntame un dato|dime un dato|dato curioso|curiosidad/i,
+    handler: () => fun.fact(),
+    msg: 'Contando dato' },  { match: /recuerda\s+que\s+(.+?)\s+es\s+(.+)/i,
     handler: (m) => { memory.set(m[1].trim().toLowerCase(), m[2].trim()); return `Recordado: ${m[1]} es ${m[2]}` },
     msg: (m) => `Recordando ${m[1]}` },
   { match: /qu[eé]\s+recuerdas(\s+de\s+m[ií])?/i,

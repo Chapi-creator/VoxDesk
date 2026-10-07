@@ -108,6 +108,28 @@ def mouth_flat():
     RRECT((90, 126, 110, 130), 2, C_RED)
 
 
+def eyes_happy():
+    for (ax, bx) in ((68, 88), (112, 132)):
+        ARC((ax, 92, bx, 112), 200, 340, C_CYAN, width=5)
+
+
+def mouth_big():
+    ELL((86, 118, 114, 136), fill=C_CYAN)
+
+
+def zzz():
+    LINE((160, 56, 172, 56), C_CYAN, width=4)
+    LINE((172, 56, 160, 68), C_CYAN, width=4)
+    LINE((160, 68, 172, 68), C_CYAN, width=4)
+    LINE((176, 36, 188, 36), C_CYAN, width=5)
+    LINE((188, 36, 176, 50), C_CYAN, width=5)
+    LINE((176, 50, 188, 50), C_CYAN, width=5)
+
+
+def sweat():
+    ELL((146, 96, 156, 110), fill=C_CYAN)
+
+
 def build(name, fn):
     global D, M
     img = Image.new('RGB', (W * SS, H * SS), (14, 14, 24))
@@ -142,6 +164,9 @@ def main():
     frames['speaking-open'] = build('speaking-open', lambda: (eyes_open(), mouth_open()))
     frames['speaking-closed'] = build('speaking-closed', lambda: (eyes_open(), mouth_closed()))
     frames['error'] = build('error', lambda: (eyes_x(), mouth_flat()))
+    frames['sleep'] = build('sleep', lambda: (eyes_closed(), mouth_closed(), zzz()))
+    frames['happy'] = build('happy', lambda: (eyes_happy(), mouth_big()))
+    frames['worried'] = build('worried', lambda: (eyes_open(90, 104), mouth_flat(), sweat()))
     verify(frames)
     print('sprites ok:', sorted(frames))
 
@@ -149,7 +174,8 @@ def main():
 def verify(frames):
     import os
     assert set(frames) == {'idle', 'blink', 'listening', 'thinking',
-                           'speaking-open', 'speaking-closed', 'error'}
+                           'speaking-open', 'speaking-closed', 'error',
+                           'sleep', 'happy', 'worried'}
     for name, im in frames.items():
         assert im.size == (200, 200), name
         p = os.path.getsize(f'assets/vox/vox-{name}.png')
@@ -189,6 +215,16 @@ def verify(frames):
                    if abs(p[x, y][0] - 79) < 40 and abs(p[x, y][1] - 195) < 40)
 
     assert mouth_cyan(frames['speaking-open']) > mouth_cyan(frames['speaking-closed']) * 2, 'boca habla'
+    assert mouth_cyan(frames['happy']) > mouth_cyan(frames['speaking-open']), 'happy sonríe más'
+
+    def zone_cyan(name, box):
+        p = frames[name].load()
+        (x0, y0, x1, y1) = box
+        return sum(1 for y in range(y0, y1) for x in range(x0, x1)
+                   if abs(p[x, y][0] - 79) < 40 and abs(p[x, y][1] - 195) < 40)
+
+    assert zone_cyan('sleep', (155, 30, 195, 72)) > 60, 'sleep tiene Z'
+    assert zone_cyan('sleep', (60, 92, 140, 113)) < zone_cyan('idle', (60, 92, 140, 113)), 'sleep ojos cerrados'
 
     a = frames['idle'].split()[3]
     left = sum(1 for y in range(200) for x in range(100) if a.getpixel((x, y)) > 64)

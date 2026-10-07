@@ -247,11 +247,27 @@ test('VoiceModule: start/stop cambian estado', async () => {
 })
 
 test('sprites Vox existen y son PNG válidos', () => {
-  for (const n of ['idle', 'blink', 'listening', 'thinking', 'speaking-open', 'speaking-closed', 'error']) {
+  for (const n of ['idle', 'blink', 'listening', 'thinking', 'speaking-open', 'speaking-closed', 'error', 'sleep', 'happy', 'worried']) {
     const b = fs.readFileSync(path.join(__dirname, '..', 'assets/vox', `vox-${n}.png`))
     assert.ok(b.length > 2000, n)
     assert.deepEqual([...b.slice(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10])
   }
+})
+
+test('UIManager: burbuja y moods', () => {
+  const doc = fakeDocument()
+  const Mascot = loadMascot(doc)
+  const UIManager = loadClass('src/renderer/ui.js', 'UIManager', { document: doc, requestAnimationFrame: () => 0, Mascot })
+  const ui = new UIManager()
+  ui.init()
+  ui.showBubble('hola')
+  assert.ok(doc.getElementById('vox-bubble').classList.contains('visible'))
+  ui.hideBubble()
+  assert.ok(!doc.getElementById('vox-bubble').classList.contains('visible'))
+  ui.setMood('happy')
+  assert.equal(ui.mascot.state, 'happy')
+  ui.setMood('bailar')
+  assert.equal(ui.mascot.state, 'happy')
 })
 
 async function run() {

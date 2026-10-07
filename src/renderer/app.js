@@ -114,6 +114,30 @@
     ui.setModelInfo(info)
   })
 
+  window.api.onLifeEvent(async (ev) => {
+    if (!ev || settings.open) return
+    ui.setMood(ev.state)
+    if (ev.text) {
+      ui.showBubble(ev.text)
+      ui.showResponse(ev.text)
+      if (ev.speak) {
+        ui.setSpeaking()
+        await window.api.speak(ev.text)
+        ui.setIdle()
+      }
+    }
+  })
+
+  if (ui.elements.mascotCanvas) {
+    ui.elements.mascotCanvas.addEventListener('dblclick', async () => {
+      if (settings.open || guide.open) return
+      const r = await window.api.pet()
+      ui.setMood('happy')
+      ui.showBubble(r.text)
+      setTimeout(() => ui.setIdle(), 4000)
+    })
+  }
+
   document.getElementById('wake-indicator')?.addEventListener('click', () => {
     window.api.toggleWake()
   })

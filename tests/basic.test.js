@@ -262,6 +262,67 @@ try {
   test('listDevices no debe lanzar', () => { throw new Error(e.message) })
 }
 
+console.log('\nvox con vida (Fase 11)')
+const testDir = path.join(os.tmpdir(), 'voxdesk-test')
+try { require('fs').mkdirSync(testDir, { recursive: true }) } catch {}
+memory.setUserDataPath(testDir)
+const mood = require('../src/main/mood')
+
+test('mood arranca en 60 y recorta', () => {
+  memory.set('vox_mood', undefined)
+  assert.equal(mood.getMood(), 60)
+  memory.set('vox_mood', 150)
+  assert.equal(mood.getMood(), 100)
+})
+
+test('addMood suma', () => {
+  memory.set('vox_mood', 60)
+  assert.equal(mood.addMood(8), 68)
+})
+
+test('nombre se guarda y recorta a 30', () => {
+  mood.setName('  Ana María de los Ángeles del Río Grande  ')
+  assert.ok(mood.getName().length <= 30)
+  mood.setName('')
+})
+
+const fun = require('../src/main/fun')
+test('joke/fact salen de sus listas', () => {
+  assert.ok(fun.JOKES.includes(fun.joke(() => 0)))
+  assert.equal(fun.fact(() => 0), fun.FACTS[0])
+})
+
+const life = require('../src/main/life')
+const today = new Date().toISOString().slice(0, 10)
+const ctxBase = () => ({ now: Date.now(), hour: 9, name: '', mood: 60, daysAway: 0, idleMin: 1, recentCmds: 0, battery: 80, lastMorning: today, lastNight: today, lastBatteryWarn: 0, lastMissed: Date.now(), lastBreak: Date.now(), lastSleepState: '', streak: null })
+
+test('batería crítica avisa con voz', () => {
+  const a = life.evaluate({ ...ctxBase(), battery: 15 })
+  assert.equal(a.id, 'battery')
+  assert.equal(a.speak, true)
+})
+
+test('buenos días una sola vez', () => {
+  const a = life.evaluate({ ...ctxBase(), lastMorning: '2000-01-01' })
+  assert.equal(a.id, 'morning')
+  assert.ok(a.stamp.lastMorning === today)
+})
+
+test('racha a los 5 pide marcar', () => {
+  const a = life.evaluate({ ...ctxBase(), streak: { day: today, n: 5, done: false } })
+  assert.equal(a.id, 'streak')
+  assert.equal(a.streakDone, true)
+})
+
+test('dormir tras 10 min sin uso', () => {
+  const a = life.evaluate({ ...ctxBase(), idleMin: 11, lastSleepState: '' })
+  assert.equal(a.id, 'sleep')
+})
+
+test('sin nada no actúa', () => {
+  assert.equal(life.evaluate(ctxBase()), null)
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

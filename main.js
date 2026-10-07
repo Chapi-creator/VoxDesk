@@ -14,6 +14,8 @@ const config = require('./src/main/config')
 const llm = require('./src/main/llm')
 const smartExec = require('./src/main/smart-exec')
 const guard = require('./src/main/guard')
+const mood = require('./src/main/mood')
+const life = require('./src/main/life')
 const memory = require('./src/main/memory')
 const logger = require('./src/main/logger')
 
@@ -230,7 +232,7 @@ ipcMain.handle(IPC_CHANNELS.COMMAND_EXEC, async (_event, transcript) => {
     return _r({ success: true, message: 'Paso grabado', speak: true })
   }
 
-  return _r(await _handleOne(transcript))
+  return _r(await handleAndTrack(transcript))
   } catch (e) {
     return _r({ success: false, message: 'Error: ' + e.message })
   }
@@ -335,6 +337,28 @@ ipcMain.handle('window:minimize', () => mainWindow?.hide())
 ipcMain.handle('window:close', () => mainWindow?.hide())
 
 let _voxSpeaking = false
+let _lastCmdAt = Date.now()
+let _lastSleepState = ''
+let _tickN = 0
+let _lastBattery = null
+
+// Fase 11: envoltorio que registra ánimo/racha/uso sin tocar el ruteo.
+async function handleAndTrack(transcript, depth = 0) {
+  _lastCmdAt = Date.now()
+  _lastSleepState = ''
+  const r = await _handleOne(transcript, depth)
+  try {
+    if (r && r.success) {
+      mood.addMood(4)
+      const s = mood.bumpStreak()
+      if (s.n === 5) mood.addMood(10)
+    } else if (r && !r.success && r.message && r.message.startsWith('No entendí')) {
+      mood.addMood(-3)
+    }
+    mood.pushCmdTime()
+  } catch {}
+  return r
+}
 
 wake.onWake = (command) => {
   if (_voxSpeaking) return
@@ -355,7 +379,7 @@ wake.onDown = (message) => {
 wake.onText = async (text) => {
   if (_voxSpeaking) return
   if (mainWindow) {
-    const result = await _handleOne(text)
+    const result = await handleAndTrack(text)
     result._text = text
     mainWindow.webContents.send('wake:result', result)
   }
@@ -364,6 +388,68 @@ wake.onText = async (text) => {
 wake.onError = (error) => {
   if (mainWindow) mainWindow.webContents.send('wake:result', { success: false, message: error })
 }
+
+// Fase 11: loop de vida. Cada 60s evalúa contexto y Vox actúa por su cuenta.
+// Voz solo si proactivity=total, fuera de horario silencioso (22-8) y hay texto.
+async function lifeTick() {
+  try {
+    const cfg = config.load()
+    if (cfg.proactivity === 'off') return
+    _tickN++
+    const now = Date.now()
+    if (_tickN % 10 === 0 || _lastBattery === null) {
+      try {
+        const pct = await new Promise((resolve) => {
+          exec('powershell -NoProfile -Command "(Get-CimInstance -ClassName Win32_Battery -ErrorAction SilentlyContinue | Select-Object -First 1).EstimatedChargeRemaining"', { timeout: 10000 }, (err, stdout) => {
+            resolve(parseInt((stdout || '').trim()) || null)
+          })
+        })
+        if (pct !== null) _lastBattery = pct
+      } catch {}
+    }
+    const hour = new Date().getHours()
+    const ctx = {
+      now, hour,
+      name: mood.getName(), mood: mood.getMood(),
+      daysAway: mood.daysSinceSeen(),
+      idleMin: (now - _lastCmdAt) / 60000,
+      recentCmds: mood.recentCount(),
+      battery: _lastBattery,
+      lastMorning: memory.get('vox_last_morning'),
+      lastNight: memory.get('vox_last_night'),
+      lastBatteryWarn: memory.get('vox_last_battery'),
+      lastMissed: memory.get('vox_last_missed'),
+      lastBreak: memory.get('vox_last_break'),
+      lastSleepState: _lastSleepState,
+      streak: memory.get('vox_streak'),
+    }
+    const a = life.evaluate(ctx)
+    mood.touchSeen()
+    if (!a) return
+    if (a.stamp) for (const [k, v] of Object.entries(a.stamp)) memory.set('vox_' + k, v)
+    if (a.streakDone) mood.markStreakDone()
+    if (a.id === 'sleep') {
+      _lastSleepState = 'sleep'
+      if (mainWindow) mainWindow.webContents.send('vox:life', { state: 'sleep', text: '' })
+      return
+    }
+    _lastSleepState = ''
+    const quiet = hour >= 22 || hour < 8
+    const allowVoice = a.speak && cfg.proactivity === 'total' && !quiet
+    if (mainWindow) mainWindow.webContents.send('vox:life', { state: a.state, text: a.text, speak: allowVoice })
+  } catch (e) {
+    logger.warn('lifeTick:', e.message)
+  }
+}
+
+const PET_LINES = ['¡Me encanta!', 'Mmm, justo ahí.', '¿Otra vez? Está bien, una más.', 'Ronroneo digital activado.', '¡Yay!']
+
+ipcMain.handle('mood:pet', async () => {
+  const m = mood.addMood(8)
+  const name = mood.getName()
+  const line = PET_LINES[Math.floor(Math.random() * PET_LINES.length)]
+  return { mood: m, text: m >= 70 && name ? `${line} ¡Estoy feliz, ${name}!` : line }
+})
 
 app.whenReady().then(async () => {
   app.setPath('userData', path.join(app.getPath('appData'), 'ai-desktop-assistant'))
@@ -386,6 +472,8 @@ app.whenReady().then(async () => {
     require('./src/main/commands/timer').loadPending()
   }
   startWake()
+  setTimeout(() => lifeTick(), 30000)
+  setInterval(() => lifeTick(), 60000)
 
   const iconPath = path.join(__dirname, 'assets', 'icon.png')
   const icon = fs.existsSync(iconPath)

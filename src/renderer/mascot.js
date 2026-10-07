@@ -2,7 +2,7 @@
 // Misma API que v1: setState idle|listening|thinking|speaking|error, setLevel 0..1.
 // Sin sprites (o sin Image, como en tests) usa cara procedural mínima. Nunca queda en blanco.
 // ponytail: un solo RAF; se pausa con la ventana oculta.
-const VOX_FRAMES = ['idle', 'blink', 'listening', 'thinking', 'speaking-open', 'speaking-closed', 'error']
+const VOX_FRAMES = ['idle', 'blink', 'listening', 'thinking', 'speaking-open', 'speaking-closed', 'error', 'sleep', 'happy', 'worried']
 
 /*exported Mascot*/
 class Mascot {
@@ -37,6 +37,9 @@ class Mascot {
     if (this.state === 'listening') return 'listening'
     if (this.state === 'thinking') return 'thinking'
     if (this.state === 'error') return 'error'
+    if (this.state === 'sleep') return 'sleep'
+    if (this.state === 'happy') return 'happy'
+    if (this.state === 'worried') return 'worried'
     if (this.state === 'speaking') return (Math.floor(this.t / 180) % 2) ? 'speaking-open' : 'speaking-closed'
     return this._blink > 0 ? 'blink' : 'idle'
   }

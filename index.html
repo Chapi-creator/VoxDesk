@@ -49,6 +49,7 @@
         <div id="response" class="response">¡Hola! Soy Vox. Tócame o dime «asistente» y te ayudo.</div>
       </div>
       <div class="content-footer">
+        <div class="vox-bubble" id="vox-bubble"></div>
         <div class="mascot-stage">
           <canvas id="mascot-canvas" width="264" height="192" title="Tócame para hablar"></canvas>
           <div class="mascot-name">VOX</div>
@@ -120,6 +121,14 @@
         <select id="settings-mic"></select>
         <label>Pausa de fin de frase (segundos)</label>
         <input type="number" id="settings-endpause" min="0.5" max="5" step="0.1" style="width:100%" />
+        <label>Tu nombre (Vox te llamará así)</label>
+        <input type="text" id="settings-username" placeholder="¿cómo te llamas?" spellcheck="false" />
+        <label>Iniciativa de Vox</label>
+        <select id="settings-proactivity">
+          <option value="total">Total (actúa y habla)</option>
+          <option value="visual">Solo visual (burbuja, sin voz)</option>
+          <option value="off">Silencio (sin vida propia)</option>
+        </select>
       </div>
       <div class="settings-section">
         <div class="settings-section-title">Correo SMTP</div>

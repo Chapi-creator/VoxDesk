@@ -27,8 +27,11 @@ class UIManager {
     this.elements.recBadge = document.getElementById('rec-badge')
     this.elements.ttsOff = document.getElementById('tts-off')
     this.elements.btnStop = document.getElementById('btn-stop')
+    this.elements.bubble = document.getElementById('vox-bubble')
+    this._bubbleTimer = null
 
     const mc = document.getElementById('mascot-canvas')
+    this.elements.mascotCanvas = mc
     if (mc && typeof Mascot !== 'undefined') {
       this.mascot = new Mascot(mc, () => { if (this.onToggle) this.onToggle() })
     }
@@ -199,6 +202,25 @@ class UIManager {
       this.elements.window.classList.remove('active')
       this.elements.window.classList.remove('thinking')
     }
+  }
+
+  setMood(state) {
+    if (this.mascot && ['happy', 'sleep', 'worried', 'idle'].includes(state)) {
+      this.mascot.setState(state)
+    }
+  }
+
+  showBubble(text, ms) {
+    if (!this.elements.bubble) return
+    this.elements.bubble.textContent = text
+    this.elements.bubble.classList.add('visible')
+    if (this._bubbleTimer) clearTimeout(this._bubbleTimer)
+    this._bubbleTimer = setTimeout(() => this.hideBubble(), ms || 8000)
+  }
+
+  hideBubble() {
+    if (this._bubbleTimer) { clearTimeout(this._bubbleTimer); this._bubbleTimer = null }
+    if (this.elements.bubble) this.elements.bubble.classList.remove('visible')
   }
 
   pushHistory(transcript, response) {

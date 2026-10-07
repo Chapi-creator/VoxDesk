@@ -17,6 +17,8 @@ class SettingsManager {
     this.elements.aiKeywords = document.getElementById('settings-aikeywords')
     this.elements.mic = document.getElementById('settings-mic')
     this.elements.endPause = document.getElementById('settings-endpause')
+    this.elements.username = document.getElementById('settings-username')
+    this.elements.proactivity = document.getElementById('settings-proactivity')
     this.elements.saveBtn = document.getElementById('btn-settings-save')
     this.elements.status = document.getElementById('settings-status')
     this.elements.gearBtn = document.getElementById('btn-gear')
@@ -40,6 +42,11 @@ class SettingsManager {
     if (cfg.wakeWord) this.elements.wakeWord.value = cfg.wakeWord
     if (cfg.aiKeywords) this.elements.aiKeywords.value = cfg.aiKeywords
     if (cfg.endPause) this.elements.endPause.value = cfg.endPause
+    if (cfg.proactivity && this.elements.proactivity) this.elements.proactivity.value = cfg.proactivity
+    try {
+      const savedName = await window.api.getPreference('vox_name')
+      if (savedName && this.elements.username) this.elements.username.value = savedName
+    } catch {}
     this._loadMics(cfg.micDevice || '')
     if (cfg.smtpHost) this.elements.smtpHost.value = cfg.smtpHost
     if (cfg.smtpPort) this.elements.smtpPort.value = cfg.smtpPort
@@ -145,6 +152,7 @@ class SettingsManager {
       aiKeywords: this.elements.aiKeywords.value.trim() || 'ia,bot,asistente',
       micDevice: this.elements.mic ? this.elements.mic.value : '',
       endPause: Math.min(5, Math.max(0.5, parseFloat(this.elements.endPause.value) || 1.2)),
+      proactivity: this.elements.proactivity ? this.elements.proactivity.value : 'total',
       smtpHost: this.elements.smtpHost.value.trim(),
       smtpPort: parseInt(this.elements.smtpPort.value) || 587,
       smtpUser: this.elements.smtpUser.value.trim(),
@@ -160,6 +168,9 @@ class SettingsManager {
       return
     }
     this._savedModel = data.model
+    if (this.elements.username) {
+      try { await window.api.setPreference('vox_name', this.elements.username.value.trim()) } catch {}
+    }
     this.elements.saveBtn.textContent = '✓ Guardado'
     this.elements.saveBtn.classList.add('saved')
     this.elements.status.textContent = data.apiKey ? `Configuración de ${data.provider} guardada.` : 'Sin API key. Solo comandos básicos.'
