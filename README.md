@@ -72,7 +72,15 @@ Lee la [Política de Privacidad](PRIVACY.md). Resumen:
 ## Desarrollo
 
 - `npm install` y `npm run setup` (descarga el modelo de voz, ~40 MB, solo una vez).
-- `npm start` para probar. `npm test` corre las pruebas. `npm run build` genera instalador + portable.
+- `npm start` para probar. `npm test` corre las pruebas. `npm run build` genera el instalador.
+
+## Publicar una release
+
+1. Sube la versión en `package.json` y pushea a `main`.
+2. `npm run build` y verifica el instalador `VoxDesk-<versión>-setup.exe`.
+3. Crea la release en GitHub con notas en español (qué cambió, cómo actualizar).
+4. Sube el mismo `.exe` a itch.io como espejo.
+5. La app instalada avisa sola de la actualización (el usuario elige cuándo reiniciar).
 
 ## Licencia
 

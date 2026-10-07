@@ -408,7 +408,18 @@ autoUpdater.on('update-available', () => {
 })
 autoUpdater.on('update-downloaded', () => {
   logger.info('Update downloaded')
-  autoUpdater.quitAndInstall()
+  if (mainWindow) mainWindow.webContents.send('update:status', 'downloaded')
+  // Fase 4: nunca reiniciar sin permiso; el usuario elige cuándo.
+  if (!mainWindow) return
+  dialog.showMessageBox(mainWindow, {
+    type: 'info',
+    buttons: ['Instalar y reiniciar', 'Al salir'],
+    defaultId: 0,
+    title: 'Actualización de VoxDesk',
+    message: 'Hay una actualización lista. ¿La instalamos?',
+  }).then(({ response }) => {
+    if (response === 0) autoUpdater.quitAndInstall()
+  }).catch(() => {})
 })
 autoUpdater.on('error', (err) => {
   logger.error('Update error: ' + (err && err.message))

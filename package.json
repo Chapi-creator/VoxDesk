@@ -1,6 +1,6 @@
 {
   "name": "voxdesk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Asistente de voz para Windows. Controla tu PC con comandos de voz: apps, archivos, macros, sistema, OCR e IA.",
   "main": "main.js",
   "scripts": {
@@ -9,7 +9,6 @@
     "prebuild:wake": "npm run setup",
     "build:wake": "python -m PyInstaller --clean --noconfirm scripts/wake.spec",
     "build": "npm run build:wake && electron-builder build --win --x64",
-    "build:portable": "npm run build:wake && electron-builder build --win portable --x64",
     "build:setup": "npm run build:wake && electron-builder build --win nsis --x64"
   },
   "devDependencies": {
@@ -20,10 +19,7 @@
     "appId": "com.voxdesk.app",
     "productName": "VoxDesk",
     "win": {
-      "target": [
-        "portable",
-        "nsis"
-      ]
+      "target": ["nsis"]
     },
     "publish": [
       {
