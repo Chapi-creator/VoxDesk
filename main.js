@@ -13,6 +13,7 @@ const tts = require('./src/main/tts')
 const config = require('./src/main/config')
 const llm = require('./src/main/llm')
 const smartExec = require('./src/main/smart-exec')
+const guard = require('./src/main/guard')
 const memory = require('./src/main/memory')
 const logger = require('./src/main/logger')
 const PROVIDER_LIST = () => Object.entries(llm.PROVIDERS || {}).map(([k, v]) => v.name).join(', ')
@@ -117,8 +118,21 @@ ipcMain.handle('speech:cancel', async () => {
   return true
 })
 
-async function _handleOne(transcript, _depth = 0) {
-  if (!transcript) return { success: false, message: 'No te escuché' }
+// Fase 3: los patrones delicados de smart-exec (apagar, borrar, matar…) piden permiso.
+smartExec.setConfirm(async (title, detail) => {
+  if (!mainWindow) return false
+  const { response } = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    buttons: ['Sí, ejecutar', 'Cancelar'],
+    defaultId: 1,
+    title: title || 'Acción delicada',
+    message: 'Vox va a ejecutar una acción delicada:',
+    detail: (detail || '').substring(0, 500),
+  })
+  return response === 0
+})
+
+async function _handleOne(transcript, _depth = 0) {  if (!transcript) return { success: false, message: 'No te escuché' }
   if (_depth > 5) return { success: false, message: 'Demasiadas macros anidadas' }
 
   const _cfg = config.load()
@@ -243,21 +257,8 @@ ipcMain.handle('llm:clear', () => {
   llm.clearHistory()
 })
 
-const _DANGEROUS_PS = [
-  /shutdown\b/i, /Restart-Computer\b/i, /Stop-Computer\b/i,
-  /Format-Volume\b/i, /Format-Partition\b/i, /Clear-Disk\b/i, /Remove-Partition\b/i,
-  /New-LocalUser\b/i, /Remove-LocalUser\b/i, /Add-LocalGroupMember\b/i, /Remove-LocalGroup\b/i,
-  /Set-MpPreference\b/i, /Set-ExecutionPolicy\b/i,
-  /bcdedit\b/i, /diskpart\b/i,
-  /HKLM:/i, /HKEY_LOCAL_MACHINE/i,
-  /Remove-Item\b.*-Recurse\b/is,
-  /Set-Service\b.*-StartupType/is,
-  /Stop-Process\b.*-Force/is,
-  /Register-ScheduledTask\b/i,
-]
-
 function isDangerous(psCode) {
-  return _DANGEROUS_PS.some(r => r.test(psCode))
+  return guard.isDangerous(psCode)
 }
 
 async function _processLlmAnswer(answer) {
@@ -265,17 +266,19 @@ async function _processLlmAnswer(answer) {
   if (psMatch) {
     const psCode = psMatch[1].trim()
     const explanation = answer.replace(/```[\s\S]*?```/g, '').trim()
-    if (isDangerous(psCode)) {
-      const { response } = await dialog.showMessageBox(mainWindow, {
-        type: 'warning',
-        buttons: ['Ejecutar', 'Cancelar'],
-        defaultId: 1,
-        title: 'Comando potencialmente peligroso',
-        message: 'La IA quiere ejecutar una operación que podría afectar el sistema:',
-        detail: psCode.substring(0, 2000),
-      })
-      if (response !== 0) return { success: true, message: (explanation || 'Operación cancelada') + '\n\n¿Necesitas algo más?', speak: true }
-    }
+    // Fase 3: la IA nunca ejecuta sin que lo veas y lo apruebes.
+    const dangerous = isDangerous(psCode)
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: dangerous ? 'warning' : 'question',
+      buttons: ['Ejecutar', 'Cancelar'],
+      defaultId: 1,
+      title: dangerous ? 'Comando potencialmente peligroso' : 'La IA quiere ejecutar esto',
+      message: dangerous
+        ? 'La IA quiere ejecutar una operación que podría afectar el sistema:'
+        : 'Revisa antes de ejecutar:',
+      detail: psCode.substring(0, 2000),
+    })
+    if (response !== 0) return { success: true, message: (explanation || 'Operación cancelada') + '\n\n¿Necesitas algo más?', speak: true }
     const tmpPS = path.join(os.tmpdir(), `_ai_llm_${Date.now()}.ps1`)
     fs.writeFileSync(tmpPS, '\ufeff' + psCode, 'utf8')
     try {

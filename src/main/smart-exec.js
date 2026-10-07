@@ -11,6 +11,14 @@ const email = require('./email')
 let _sfc = 0
 function tmpFile(pref) { return path.join(os.tmpdir(), `_ai_${pref}_${process.pid}_${++_sfc}.ps1`) }
 
+// Fase 3: main.js inyecta el diálogo real con setConfirm. Sin inyectar, auto-sí (tests).
+let _confirmFn = null
+function setConfirm(fn) { _confirmFn = fn }
+async function _confirm(title, detail) {
+  if (!_confirmFn) return true
+  try { return await _confirmFn(title, detail) } catch { return false }
+}
+
 const SEP = /(?:\s+y\s+|\s+y\s+luego\s+|\s+luego\s+|\s+despu[ée]s\s+)/i
 const PS_MOUSE = `Add-Type -AssemblyName System.Windows.Forms
 Add-Type -ErrorAction SilentlyContinue @"
@@ -75,12 +83,15 @@ const PATTERNS = [
     msg: (m) => `Trayendo ${m[1]} al frente` },
   { match: /cierra\s+(la\s+)?sesi[óo]n|logoff|salir/i,
     run: `shutdown /l`,
+    confirm: 'Cerrar sesión',
     msg: 'Cerrando sesión' },
   { match: /cierra\s+(.+)/i,
     run: (m) => stopProcess(m[1]),
+    confirm: (m) => `Cerrar ${m[1]}`,
     msg: (m) => `Cerrando ${m[1]}` },
   { match: /cierra\s+todo|mata\s+todo|cerrar\s+todo/i,
     run: `Get-Process | Where-Object { $_.MainWindowTitle -ne '' } | Where-Object { $_.ProcessName -notin @('explorer','taskmgr','ApplicationFrameHost') } | Stop-Process -Force`,
+    confirm: 'Cerrar todas las ventanas',
     msg: 'Cerrando todo' },
 
   // --- MOUSE CONTROL ---
@@ -120,6 +131,7 @@ const PATTERNS = [
   // --- EMAIL / WHATSAPP ---
   { match: /envía\s+(un\s+)?(email|correo|mail)\s+a\s+(.+?)\s+(?:asunto\s+(.+?)\s+)?diciendo\s+(.+)/i,
     handler: async (m) => { const result = await email.send(m[3].trim(), m[4]?.trim() || '', m[5].trim()); return result },
+    confirm: (m) => `Enviar email a ${m[3]}`,
     msg: (m) => `Enviando email a ${m[3]}...` },
   { match: /(?:redacta|crea|nuev[oa]|prepara|escribe)\s+(?:un\s+)?(?:correo|email|mail)\b\s*(.*)/i,
     handler: async (m) => {
@@ -377,6 +389,7 @@ const PATTERNS = [
   // --- POWER ---
   { match: /hiberna|hibernar/i,
     run: `shutdown /h`,
+    confirm: 'Hibernar el equipo',
     msg: 'Hibernando' },
   // --- THEME ---
   { match: /tema\s+(oscuro|claro|obscuro)/i,
@@ -389,6 +402,7 @@ const PATTERNS = [
     msg: (m) => `Carpeta "${m[2]}" creada` },
   { match: /borra\s+(el\s+)?(archivo|fichero)\s+(.+)/i,
     run: (m) => `Remove-Item -Path ${psStr(m[3])} -Force -ErrorAction SilentlyContinue`,
+    confirm: (m) => `Borrar el archivo ${m[3]}`,
     msg: (m) => `Borrado ${m[3]}` },
   { match: /renombra\s+(.+?)\s+(?:a|como)\s+(.+)/i,
     run: (m) => `Rename-Item -Path ${psStr(m[1])} -NewName ${psStr(m[2])} -ErrorAction SilentlyContinue`,
@@ -458,18 +472,22 @@ const PATTERNS = [
   // --- SYSTEM ---
   { match: /vac(i|í)a\s+(la\s+)?papelera/i,
     run: `(New-Object -ComObject Shell.Application).NameSpace(0xa).Items() | ForEach-Object { $_.InvokeVerb('delete') }`,
+    confirm: 'Vaciar la papelera',
     msg: 'Papelera vaciada' },
   { match: /bloquea\s+(el\s+)?(equipo|pc|sesi[óo]n)?/i,
     run: `rundll32.exe user32.dll,LockWorkStation`,
     msg: 'Equipo bloqueado' },
   { match: /suspende|duerme|sleep/i,
     run: `rundll32.exe powrprof.dll,SetSuspendState 0,1,0`,
+    confirm: 'Suspender el equipo',
     msg: 'Durmiendo' },
-  { match: /apaga\s*(el\s+)?(equipo|pc)?(\s+en\s+(\d+))?/i,
+  { match: /apaga(?!do\b)\s*(el\s+)?(equipo|pc)?(\s+en\s+(\d+))?/i,
     run: (m) => `shutdown /s /t ${(m[4] || 30)} /c "Apagando por solicitud del asistente"`,
+    confirm: (m) => `Apagar el equipo en ${m[4] || 30} segundos`,
     msg: (m) => `Apagando en ${m[4] || 30} segundos` },
-  { match: /reinicia\s*(el\s+)?(equipo|pc)?/i,
+  { match: /reinicia(?!\s+(el\s+)?servicio)\s*(el\s+)?(equipo|pc)?/i,
     run: `shutdown /r /t 20 /c "Reiniciando por solicitud del asistente"`,
+    confirm: 'Reiniciar el equipo en 20 segundos',
     msg: 'Reiniciando en 20 segundos' },
   { match: /cancela\s+(el\s+)?(apagado|reinicio)/i,
     run: `shutdown /a`,
@@ -500,12 +518,15 @@ const PATTERNS = [
     msg: 'Listando servicios' },
   { match: /inicia\s+(el\s+)?(servicio\s+)?(.+)/i,
     run: (m) => `Start-Service '${escapePs(m[3])}' -ErrorAction SilentlyContinue; if ($?) { 'Iniciado' } else { 'Error al iniciar' }`,
+    confirm: (m) => `Iniciar el servicio ${m[3]}`,
     msg: (m) => `Iniciando servicio ${m[3]}` },
   { match: /(det[eé]n|detiene|para|apaga)\s+(el\s+)?(servicio\s+)?(.+)/i,
     run: (m) => `Stop-Service '${escapePs(m[4])}' -Force -ErrorAction SilentlyContinue; if ($?) { 'Detenido' } else { 'Error al detener' }`,
+    confirm: (m) => `Detener el servicio ${m[4]}`,
     msg: (m) => `Deteniendo servicio ${m[4]}` },
   { match: /reinicia\s+(el\s+)?(servicio\s+)?(.+)/i,
     run: (m) => `Restart-Service '${escapePs(m[3])}' -Force -ErrorAction SilentlyContinue; if ($?) { 'Reiniciado' } else { 'Error al reiniciar' }`,
+    confirm: (m) => `Reiniciar el servicio ${m[3]}`,
     msg: (m) => `Reiniciando servicio ${m[3]}` },
 
   // --- MEMORY ---
@@ -597,6 +618,7 @@ public class MK {
     msg: 'Listando procesos' },
   { match: /mata\s+(proceso\s+)?(\d+)/i,
     run: (m) => `Stop-Process -Id ${m[2]} -Force -ErrorAction SilentlyContinue; if ($?) { 'Matado' } else { 'No se pudo matar' }`,
+    confirm: (m) => `Matar el proceso ${m[2]}`,
     msg: (m) => `Matando proceso ${m[2]}` },
   { match: /prioridad\s+(alta|normal|baja|idle|above\s+normal|below\s+normal)\s+(?:a\s+)?(?:proceso\s+)?(\d+)/i,
     run: (m) => { const map = { alta:'High',normal:'Normal',baja:'Idle',idle:'Idle','above normal':'AboveNormal','below normal':'BelowNormal' }; return `(Get-Process -Id ${m[2]} -ErrorAction SilentlyContinue).PriorityClass = [System.Diagnostics.ProcessPriorityClass]::${map[m[1].toLowerCase()] || 'Normal'}` },
@@ -616,6 +638,7 @@ public class MK {
   // --- DELETE FOLDER ---
   { match: /borra\s+(la\s+)?carpeta\s+(.+)|elimina\s+(la\s+)?carpeta\s+(.+)/i,
     run: (m) => `Remove-Item -Path ${psStr(m[2] || m[4])} -Recurse -Force -ErrorAction SilentlyContinue`,
+    confirm: (m) => `Borrar la carpeta ${m[2] || m[4]}`,
     msg: (m) => `Carpeta ${m[2] || m[4]} borrada` },
 
   // --- FILE PROPERTIES / INFO ---
@@ -676,6 +699,7 @@ public class MK {
       return `shutdown /s /t ${secs} /c "Apagado programado por asistente de voz"; Write-Output "Apagando en ${num} ${unit || 'segundos'}"`
     },
     capture: true,
+    confirm: (m) => `Apagar el equipo en ${m[1] || m[3]} ${(m[2] || m[4] || 'segundos')}`,
     msg: (m) => `Apagando en ${m[1] || m[3]} ${(m[2] || m[4] || 'segundos')}` },
   { match: /cancela\s+(el\s+)?apagado|cancela\s+(el\s+)?reinicio|aborta\s+(el\s+)?shutdown/i,
     run: `shutdown /a; Write-Output 'Apagado cancelado'`,
@@ -775,12 +799,14 @@ public class MK {
         : `${cmd} 2>&1`
     },
     capture: true,
+    confirm: (m) => `Ejecutar: ${m[1] || m[2] || m[3]}`,
     msg: (m) => `Ejecutando: ${m[1] || m[2] || m[3]}` },
 
   // --- RUN SCRIPT / BUILD ---
   { match: /corre\s+(npm\s+\w+|yarn\s+\w+|pnpm\s+\w+|python\s+.+|node\s+.+|npx\s+.+|dotnet\s+\w+|cargo\s+\w+)/i,
     run: (m) => `cmd /c "${m[1]}" 2>&1`,
     capture: true,
+    confirm: (m) => `Ejecutar ${m[1]} en la terminal`,
     msg: (m) => `Ejecutando ${m[1]}` },
 
   // --- OPEN PROJECT IN VS CODE ---
@@ -1259,8 +1285,7 @@ async function execute(text) {
     }
     if (!results.length) return null
     const messages = results.map(r => r.message).filter(Boolean).join('. ')
-    const batchPs = results.filter(r => !r._capture).map(r => r._psCode).filter(Boolean).join('\n')
-    if (batchPs) await runPs(batchPs)
+    // Fase 3: sin re-ejecutar — matchOne ya corrió cada segmento (evita doble apagado/borrado).
     const result = { success: true, message: messages, speak: true }
     saveHistory(text, result)
     return result
@@ -1281,6 +1306,10 @@ async function matchOne(text) {
   for (const p of PATTERNS) {
     const m = text.match(p.match)
     if (m) {
+      if (p.confirm) {
+        const ok = await _confirm(typeof p.confirm === 'function' ? p.confirm(m) : p.confirm, text)
+        if (!ok) return { success: true, message: 'Cancelado. ¿Necesitas algo más?', speak: true }
+      }
       // Handler pattern — JS-only, no PS needed
       if (p.handler) {
         try {
@@ -1460,4 +1489,4 @@ function saveHistory(query, result) {
   } catch {}
 }
 
-module.exports = { execute, getHelp }
+module.exports = { execute, getHelp, setConfirm }
