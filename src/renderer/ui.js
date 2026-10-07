@@ -1,5 +1,4 @@
-﻿/*global Mascot*/
-/*exported UIManager*/
+﻿/*exported UIManager*/
 class UIManager {
   constructor() {
     this.elements = {}
@@ -27,14 +26,7 @@ class UIManager {
     this.elements.recBadge = document.getElementById('rec-badge')
     this.elements.ttsOff = document.getElementById('tts-off')
     this.elements.btnStop = document.getElementById('btn-stop')
-    this.elements.bubble = document.getElementById('vox-bubble')
-    this._bubbleTimer = null
-
-    const mc = document.getElementById('mascot-canvas')
-    this.elements.mascotCanvas = mc
-    if (mc && typeof Mascot !== 'undefined') {
-      this.mascot = new Mascot(mc, () => { if (this.onToggle) this.onToggle() })
-    }
+    this.elements.cmdInput = document.getElementById('cmd-input')
 
     if (this.elements.btn) {
       this.elements.btn.addEventListener('click', () => {
@@ -68,7 +60,6 @@ class UIManager {
     this._level = Math.min(1, Math.max(0, level))
     this._speaking = !!speaking
     this._vadState = vad || 'listening'
-    if (this.mascot) this.mascot.setLevel(this._level)
     if (!this._animFrame) this._startDrawLoop()
   }
 
@@ -143,7 +134,6 @@ class UIManager {
 
   setListening() {
     this._setStatus('ESCUCHANDO', 'listening')
-    if (this.mascot) this.mascot.setState('listening')
     if (this.elements.btn) this.elements.btn.classList.add('recording')
     if (this.elements.levelMeter) this.elements.levelMeter.classList.add('visible')
     if (this.elements.window) this.elements.window.classList.add('active')
@@ -151,7 +141,6 @@ class UIManager {
 
   setProcessing() {
     this._setStatus('PROCESANDO', 'processing')
-    if (this.mascot) this.mascot.setState('thinking')
     if (this.elements.levelMeter) this.elements.levelMeter.classList.remove('visible')
     if (this.elements.window) {
       this.elements.window.classList.add('active')
@@ -162,13 +151,11 @@ class UIManager {
 
   setThinking() {
     this._setStatus('PENSANDO', 'thinking')
-    if (this.mascot) this.mascot.setState('thinking')
     if (this.elements.window) this.elements.window.classList.add('thinking')
   }
 
   setIdle() {
-    this._setStatus('TOCA A VOX PARA HABLAR', 'idle')
-    if (this.mascot) this.mascot.setState('idle')
+    this._setStatus('SISTEMAS LISTOS', 'idle')
     this.clearModelInfo()
     if (this.elements.btn) this.elements.btn.classList.remove('recording')
     if (this.elements.btnStop) this.elements.btnStop.classList.remove('visible')
@@ -189,13 +176,11 @@ class UIManager {
 
   setSpeaking() {
     this._setStatus('HABLANDO', 'speaking')
-    if (this.mascot) this.mascot.setState('speaking')
     if (this.elements.btnStop) this.elements.btnStop.classList.add('visible')
   }
 
   setError(msg) {
     this._setStatus(msg || 'ERROR', 'error')
-    if (this.mascot) this.mascot.setState('error')
     if (this.elements.levelMeter) this.elements.levelMeter.classList.remove('visible')
     if (this.elements.btnStop) this.elements.btnStop.classList.remove('visible')
     if (this.elements.window) {
@@ -204,24 +189,6 @@ class UIManager {
     }
   }
 
-  setMood(state) {
-    if (this.mascot && ['happy', 'sleep', 'worried', 'idle'].includes(state)) {
-      this.mascot.setState(state)
-    }
-  }
-
-  showBubble(text, ms) {
-    if (!this.elements.bubble) return
-    this.elements.bubble.textContent = text
-    this.elements.bubble.classList.add('visible')
-    if (this._bubbleTimer) clearTimeout(this._bubbleTimer)
-    this._bubbleTimer = setTimeout(() => this.hideBubble(), ms || 8000)
-  }
-
-  hideBubble() {
-    if (this._bubbleTimer) { clearTimeout(this._bubbleTimer); this._bubbleTimer = null }
-    if (this.elements.bubble) this.elements.bubble.classList.remove('visible')
-  }
 
   pushHistory(transcript, response) {
     if (!this.elements.history) return

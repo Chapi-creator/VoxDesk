@@ -442,15 +442,6 @@ async function lifeTick() {
   }
 }
 
-const PET_LINES = ['¡Me encanta!', 'Mmm, justo ahí.', '¿Otra vez? Está bien, una más.', 'Ronroneo digital activado.', '¡Yay!']
-
-ipcMain.handle('mood:pet', async () => {
-  const m = mood.addMood(8)
-  const name = mood.getName()
-  const line = PET_LINES[Math.floor(Math.random() * PET_LINES.length)]
-  return { mood: m, text: m >= 70 && name ? `${line} ¡Estoy feliz, ${name}!` : line }
-})
-
 app.whenReady().then(async () => {
   app.setPath('userData', path.join(app.getPath('appData'), 'ai-desktop-assistant'))
   config.setUserDataPath(app.getPath('userData'))

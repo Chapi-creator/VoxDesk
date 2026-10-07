@@ -38,7 +38,6 @@ contextBridge.exposeInMainWorld('api', {
   },
   checkTts: () => ipcRenderer.invoke('tts:check'),
   listMicDevices: () => ipcRenderer.invoke('audio:devices'),
-  pet: () => ipcRenderer.invoke('mood:pet'),
   getPreference: (key) => ipcRenderer.invoke('memory:get', key),
   setPreference: (key, value) => ipcRenderer.invoke('memory:set', key, value),
 })

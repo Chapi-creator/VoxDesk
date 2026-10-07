@@ -5,7 +5,7 @@ class GuideManager {
     this.elements = {}
     this.onSelect = null // (texto) => ejecuta un comando de ejemplo
     // ponytail: tocar = intención explícita; lo delicado igual pide confirmación (Fase 3)
-    this.tryItems = ['di hola vox', 'qué hora es', 'qué fecha es', 'ayuda', 'clima en Madrid', 'traduce hola al inglés', 'temporizador de 10 segundos']
+    this.tryItems = ['di hola vox', 'qué hora es', 'qué fecha es', 'ayuda', 'clima en Madrid', 'traduce hola al inglés', 'temporizador de 10 segundos', 'cuéntame un chiste']
   }
 
   async init() {

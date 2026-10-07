@@ -87,49 +87,21 @@ function loadClass(file, name, extra = {}) {
   return fn(...names.map(n => (n in extra ? extra[n] : base[n] ?? {})))
 }
 
-function loadMascot(doc) {
-  return loadClass('src/renderer/mascot.js', 'Mascot', { document: doc, requestAnimationFrame: () => 0 })
-}
+console.log('\nrenderer (HUD sin mascota)')
 
-console.log('\nrenderer (Fase 9)')
-
-test('Mascot: 5 estados dibujan sin romper + click', () => {
+test('UIManager: init + todos los estados sin mascota', () => {
   const doc = fakeDocument()
-  const Mascot = loadMascot(doc)
-  let tapped = 0
-  const mc = doc.getElementById('mascot-canvas')
-  const m = new Mascot(mc, () => tapped++)
-  for (const s of ['idle', 'listening', 'thinking', 'speaking', 'error']) {
-    m.setState(s)
-    m.setLevel(0.7)
-    m._loop(1000 + ['idle', 'listening', 'thinking', 'speaking', 'error'].indexOf(s) * 500)
-  }
-  assert.equal(m.state, 'error')
-  mc.listeners.click[0]()
-  assert.equal(tapped, 1)
-})
-
-test('Mascot: setLevel recorta a 0..1', () => {
-  const doc = fakeDocument()
-  const Mascot = loadMascot(doc)
-  const m = new Mascot(doc.getElementById('mascot-canvas'))
-  m.setLevel(5); assert.equal(m.level, 1)
-  m.setLevel(-2); assert.equal(m.level, 0)
-})
-
-test('UIManager: init + todos los estados + forward a mascota', () => {
-  const doc = fakeDocument()
-  const Mascot = loadMascot(doc)
-  const UIManager = loadClass('src/renderer/ui.js', 'UIManager', { document: doc, requestAnimationFrame: () => 0, Mascot })
+  const UIManager = loadClass('src/renderer/ui.js', 'UIManager', { document: doc, requestAnimationFrame: () => 0 })
   const ui = new UIManager()
   ui.init()
-  assert.ok(ui.mascot, 'mascota creada')
-  ui.setListening(); assert.equal(ui.mascot.state, 'listening')
-  ui.setProcessing(); assert.equal(ui.mascot.state, 'thinking')
-  ui.setThinking(); assert.equal(ui.mascot.state, 'thinking')
-  ui.setSpeaking(); assert.equal(ui.mascot.state, 'speaking')
-  ui.setError('x'); assert.equal(ui.mascot.state, 'error')
-  ui.setIdle(); assert.equal(ui.mascot.state, 'idle')
+  assert.equal(ui.mascot, undefined)
+  ui.setListening()
+  ui.setProcessing()
+  ui.setThinking()
+  ui.setSpeaking()
+  ui.setError('x')
+  ui.setIdle()
+  assert.equal(doc.getElementById('status').textContent, 'SISTEMAS LISTOS')
   ui.setAudioLevel(0.5, true, 'speaking')
   ui._drawLevels()
   ui.showTranscript('hola'); ui.showResponse('ok')
@@ -138,8 +110,7 @@ test('UIManager: init + todos los estados + forward a mascota', () => {
 
 test('UIManager: boton grabar llama onToggle', () => {
   const doc = fakeDocument()
-  const Mascot = loadMascot(doc)
-  const UIManager = loadClass('src/renderer/ui.js', 'UIManager', { document: doc, requestAnimationFrame: () => 0, Mascot })
+  const UIManager = loadClass('src/renderer/ui.js', 'UIManager', { document: doc, requestAnimationFrame: () => 0 })
   const ui = new UIManager()
   ui.init()
   let n = 0
@@ -244,30 +215,6 @@ test('VoiceModule: start/stop cambian estado', async () => {
   await v2.start()
   assert.equal(heard, 'qué hora es')
   assert.deepEqual(states2, [true, false])
-})
-
-test('sprites Vox existen y son PNG válidos', () => {
-  for (const n of ['idle', 'blink', 'listening', 'thinking', 'speaking-open', 'speaking-closed', 'error', 'sleep', 'happy', 'worried']) {
-    const b = fs.readFileSync(path.join(__dirname, '..', 'assets/vox', `vox-${n}.png`))
-    assert.ok(b.length > 2000, n)
-    assert.deepEqual([...b.slice(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10])
-  }
-})
-
-test('UIManager: burbuja y moods', () => {
-  const doc = fakeDocument()
-  const Mascot = loadMascot(doc)
-  const UIManager = loadClass('src/renderer/ui.js', 'UIManager', { document: doc, requestAnimationFrame: () => 0, Mascot })
-  const ui = new UIManager()
-  ui.init()
-  ui.showBubble('hola')
-  assert.ok(doc.getElementById('vox-bubble').classList.contains('visible'))
-  ui.hideBubble()
-  assert.ok(!doc.getElementById('vox-bubble').classList.contains('visible'))
-  ui.setMood('happy')
-  assert.equal(ui.mascot.state, 'happy')
-  ui.setMood('bailar')
-  assert.equal(ui.mascot.state, 'happy')
 })
 
 async function run() {

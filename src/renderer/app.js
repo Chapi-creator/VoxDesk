@@ -116,9 +116,8 @@
 
   window.api.onLifeEvent(async (ev) => {
     if (!ev || settings.open) return
-    ui.setMood(ev.state)
     if (ev.text) {
-      ui.showBubble(ev.text)
+      ui.pushHistory('[sistema]', ev.text)
       ui.showResponse(ev.text)
       if (ev.speak) {
         ui.setSpeaking()
@@ -128,13 +127,16 @@
     }
   })
 
-  if (ui.elements.mascotCanvas) {
-    ui.elements.mascotCanvas.addEventListener('dblclick', async () => {
-      if (settings.open || guide.open) return
-      const r = await window.api.pet()
-      ui.setMood('happy')
-      ui.showBubble(r.text)
-      setTimeout(() => ui.setIdle(), 4000)
+  const cmdInput = document.getElementById('cmd-input')
+  if (cmdInput) {
+    cmdInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const t = cmdInput.value.trim()
+        if (t && !settings.open && !guide.open) {
+          cmdInput.value = ''
+          handleCommand(t)
+        }
+      }
     })
   }
 

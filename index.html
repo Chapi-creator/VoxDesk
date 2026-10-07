@@ -46,13 +46,12 @@
       <div class="scroll-area" id="scroll-area">
         <div id="history"></div>
         <div id="transcript" class="transcript"></div>
-        <div id="response" class="response">¡Hola! Soy Vox. Tócame o dime «asistente» y te ayudo.</div>
+        <div id="response" class="response">SISTEMAS LISTOS. Di «asistente» o escribe una orden.</div>
       </div>
       <div class="content-footer">
-        <div class="vox-bubble" id="vox-bubble"></div>
-        <div class="mascot-stage">
-          <canvas id="mascot-canvas" width="264" height="192" title="Tócame para hablar"></canvas>
-          <div class="mascot-name">VOX</div>
+        <div class="cmd-row">
+          <span class="cmd-prompt">›</span>
+          <input id="cmd-input" class="cmd-input" placeholder="Escribe una orden y pulsa Enter…" spellcheck="false" autocomplete="off" />
         </div>
         <div class="level-meter" id="level-meter">
           <canvas id="level-canvas"></canvas>
@@ -173,7 +172,6 @@
     </div>
   </div>
 
-  <script src="src/renderer/mascot.js"></script>
   <script src="src/renderer/voice.js"></script>
   <script src="src/renderer/ui.js"></script>
   <script src="src/renderer/onboarding.js"></script>

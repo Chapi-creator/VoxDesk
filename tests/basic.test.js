@@ -250,6 +250,12 @@ test('config trae micDevice y endPause', () => {
 
 const wake = require('../src/main/wake')
 test('wake.start sin motor devuelve false sin romper', () => {
+  const fs = require('fs')
+  const path = require('path')
+  if (fs.existsSync(path.join(__dirname, '..', 'dist', 'wake.exe'))) {
+    console.log('    (con motor compilado, se omite)')
+    return
+  }
   assert.equal(wake.start('asistente', { endPause: 1.2 }), false)
 })
 
