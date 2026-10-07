@@ -239,6 +239,29 @@ test('runPs captura stdout', () => {
   assert.equal(out.err, null)
 })
 
+console.log('\nvoz Fase 7 (config + wake)')
+const config = require('../src/main/config')
+config.setUserDataPath(os.tmpdir())
+const cfg = config.load()
+test('config trae micDevice y endPause', () => {
+  assert.ok('micDevice' in cfg)
+  assert.ok(cfg.endPause >= 0.5 && cfg.endPause <= 5)
+})
+
+const wake = require('../src/main/wake')
+test('wake.start sin motor devuelve false sin romper', () => {
+  assert.equal(wake.start('asistente', { endPause: 1.2 }), false)
+})
+
+try {
+  const devs = await wake.listDevices()
+  test('listDevices devuelve arreglo', () => {
+    assert.ok(Array.isArray(devs))
+  })
+} catch (e) {
+  test('listDevices no debe lanzar', () => { throw new Error(e.message) })
+}
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

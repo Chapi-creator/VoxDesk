@@ -1,12 +1,38 @@
-const { spawn } = require('child_process')
+const { spawn, execFile } = require('child_process')
 const path = require('path')
 const fs = require('fs')
 const logger = require('./logger')
 
+function isPackaged() {
+  try { return require('electron').app.isPackaged } catch { return false }
+}
+
 const WAKE_EXE = (() => {
-  try { const a = require('electron').app; if (a.isPackaged) return path.join(process.resourcesPath, 'wake.exe') } catch {}
+  if (isPackaged()) return path.join(process.resourcesPath, 'wake.exe')
   return path.join(__dirname, '..', '..', 'dist', 'wake.exe')
 })()
+
+// Lista micrófonos vía wake (exe) o wake.py (dev). [] si no se puede.
+function listDevices() {
+  return new Promise((resolve) => {
+    const useExe = fs.existsSync(WAKE_EXE)
+    const cmd = useExe ? WAKE_EXE : 'python'
+    const args = useExe ? ['--list-devices'] : [path.join(__dirname, 'wake.py'), '--list-devices']
+    execFile(cmd, args, { timeout: 20000 }, (err, stdout) => {
+      if (err) return resolve([])
+      try {
+        for (const line of String(stdout).split('\n')) {
+          const t = line.trim()
+          if (!t) continue
+          const o = JSON.parse(t)
+          if (o.devices) return resolve(o.devices)
+          if (o.error) return resolve([])
+        }
+        resolve([])
+      } catch { resolve([]) }
+    })
+  })
+}
 
 let proc = null
 let onWake = null
@@ -22,7 +48,7 @@ let _retryCount = 0
 let _startTime = 0
 let _wakeWord = 'asistente'
 
-function start(wakeWord) {
+function start(wakeWord, opts = {}) {
   if (wakeWord) _wakeWord = wakeWord
   if (running) return true
   if (!fs.existsSync(WAKE_EXE)) {
@@ -36,6 +62,8 @@ function start(wakeWord) {
   const args = []
   if (wakeWord) args.push(wakeWord)
   else if (_wakeWord) args.push(_wakeWord)
+  if (opts.device) args.push('--device', String(opts.device))
+  if (opts.endPause) args.push('--end-pause', String(opts.endPause))
 
   _startTime = Date.now()
   const p = spawn(WAKE_EXE, args, {
@@ -111,4 +139,4 @@ function isRunning() {
   return running
 }
 
-module.exports = { start, stop, isRunning, set onWake(v) { onWake = v }, set onText(v) { onText = v }, set onError(v) { onError = v }, set onLevel(v) { onLevel = v }, set onDown(v) { onDown = v } }
+module.exports = { start, stop, isRunning, listDevices, set onWake(v) { onWake = v }, set onText(v) { onText = v }, set onError(v) { onError = v }, set onLevel(v) { onLevel = v }, set onDown(v) { onDown = v } }

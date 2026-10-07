@@ -60,12 +60,17 @@ function createWindow(port) {
   mainWindow.setVisibleOnAllWorkspaces(true)
 }
 
+function wakeOpts() {
+  const cfg = config.load()
+  return { device: cfg.micDevice || undefined, endPause: cfg.endPause || undefined }
+}
+
 function setWakeMode(on) {
   wakeMode = on
   if (wakeRestartTimer) { clearTimeout(wakeRestartTimer); wakeRestartTimer = null }
   if (on) {
     const cfg = config.load()
-    wake.start(cfg.wakeWord || 'asistente')
+    wake.start(cfg.wakeWord || 'asistente', wakeOpts())
   } else wake.stop()
   if (mainWindow) mainWindow.webContents.send('wake:toggle', on)
 }
@@ -96,7 +101,7 @@ ipcMain.handle('speech:recognize', async () => {
   if (_speechBusy) { tts.speak('Estoy ocupado, espera un momento').catch(() => {}); return { error: 'Ocupado' } }
   if (!wake.isRunning()) {
     const cfg = config.load()
-    const ok = wake.start(cfg.wakeWord || 'asistente')
+    const ok = wake.start(cfg.wakeWord || 'asistente', wakeOpts())
     if (!ok) return { error: 'No se pudo iniciar la detección de voz: revisa que wake.exe esté junto a la app' }
   }
   _speechBusy = true
@@ -232,7 +237,17 @@ ipcMain.handle(IPC_CHANNELS.COMMAND_EXEC, async (_event, transcript) => {
 })
 
 ipcMain.handle('tts:speak', async (_event, text) => {
-  await tts.speak(text)
+  // Fase 7 anti-eco: mientras Vox habla, lo que entra por el micro se ignora.
+  _voxSpeaking = true
+  try {
+    await tts.speak(text)
+  } finally {
+    _voxSpeaking = false
+  }
+})
+
+ipcMain.handle('audio:devices', async () => {
+  return await wake.listDevices()
 })
 
 ipcMain.handle('tts:stop', () => {
@@ -319,7 +334,10 @@ ipcMain.handle('help:get', () => {
 ipcMain.handle('window:minimize', () => mainWindow?.hide())
 ipcMain.handle('window:close', () => mainWindow?.hide())
 
+let _voxSpeaking = false
+
 wake.onWake = (command) => {
+  if (_voxSpeaking) return
   if (mainWindow) {
     mainWindow.show(); mainWindow.focus()
     mainWindow.webContents.send('wake:detected', command || '')
@@ -335,6 +353,7 @@ wake.onDown = (message) => {
 }
 
 wake.onText = async (text) => {
+  if (_voxSpeaking) return
   if (mainWindow) {
     const result = await _handleOne(text)
     result._text = text

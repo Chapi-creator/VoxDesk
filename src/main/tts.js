@@ -16,6 +16,8 @@ function speak(text) {
     const msg = escapeSingle(text.replace(/['"]/g, '').substring(0, 2000))
     const ps = `try {
   $v = New-Object -ComObject SAPI.SpVoice -ErrorAction Stop
+  $es = @($v.GetVoices() | Where-Object { $_.GetAttribute('Language') -match '0A$' })[0]
+  if ($es) { $v.Voice = $es }
   $v.Speak('${msg}')
 } catch {
   try {

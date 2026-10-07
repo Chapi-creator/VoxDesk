@@ -10,8 +10,10 @@ RATE = 16000
 FRAME_MS = 30
 FRAME_SIZE = int(RATE * FRAME_MS / 1000)
 LEVEL_INTERVAL = 0.1
-WAKE_WORDS = [w.lower() for w in sys.argv[1:]] if len(sys.argv) > 1 else ['asistente']
 LISTEN_TRIGGER = os.path.join(os.environ.get('TEMP', ''), 'voxdesk_listen_trigger')
+
+WAKE_WORDS = ['asistente']
+END_PAUSE = 1.2
 
 def rms_level(frame):
     count = len(frame) // 2
@@ -76,7 +78,7 @@ def detect_wake(text, words):
     lower = text.lower()
     return any(re.search(r'(?<!\w)' + re.escape(w) + r'(?!\w)', lower) for w in words)
 
-def capture_speech(stream, timeout=15, initial_frames=None):
+def capture_speech(stream, timeout=15, initial_frames=None, end_pause=None):
     frames = []
     preroll = collections.deque(maxlen=20)
     triggered = False
@@ -84,7 +86,7 @@ def capture_speech(stream, timeout=15, initial_frames=None):
     speech_ended = None
     last_emit = 0.0
     hp = HighPass()
-    END_PAUSE = 2.0
+    END = end_pause if end_pause else END_PAUSE
     floor = 0.02
     pending = list(initial_frames) if initial_frames else None
 
@@ -128,7 +130,7 @@ def capture_speech(stream, timeout=15, initial_frames=None):
         elapsed = now - started
         if elapsed > timeout:
             break
-        if triggered and speech_ended and now - speech_ended > END_PAUSE:
+        if triggered and speech_ended and now - speech_ended > END:
             break
         if os.path.exists(LISTEN_TRIGGER):
             try: os.remove(LISTEN_TRIGGER)
@@ -166,19 +168,56 @@ def recognize(raw):
 stream = None
 p = None
 
+def list_devices():
+    import pyaudio
+    p = pyaudio.PyAudio()
+    devs = []
+    for i in range(p.get_device_count()):
+        info = p.get_device_info_by_index(i)
+        if info.get('maxInputChannels', 0) > 0:
+            devs.append({'index': i, 'name': info.get('name', '')})
+    p.terminate()
+    return devs
+
+
 def main():
-    global stream, p, _model
+    global stream, p, _model, WAKE_WORDS, END_PAUSE
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument('wakewords', nargs='*')
+    ap.add_argument('--device', default='')
+    ap.add_argument('--end-pause', type=float, default=1.2)
+    ap.add_argument('--list-devices', action='store_true')
+    args = ap.parse_args()
+    if args.wakewords:
+        WAKE_WORDS = [w.lower() for w in args.wakewords]
+    END_PAUSE = args.end_pause
+
+    if args.list_devices:
+        try:
+            emit(devices=list_devices())
+        except Exception as e:
+            emit(error=str(e))
+        return
+
     try:
         _model = vosk.Model(MODEL_PATH)
 
         rec = vosk.KaldiRecognizer(_model, RATE)
         p = pyaudio.PyAudio()
         dev_index = None
-        for i in range(p.get_device_count()):
-            info = p.get_device_info_by_index(i)
-            if info.get('maxInputChannels', 0) > 0:
-                dev_index = i
-                break
+        if args.device != '':
+            for i in range(p.get_device_count()):
+                info = p.get_device_info_by_index(i)
+                if info.get('maxInputChannels', 0) > 0 and (str(i) == args.device or args.device.lower() in str(info.get('name', '')).lower()):
+                    dev_index = i
+                    break
+        if dev_index is None:
+            for i in range(p.get_device_count()):
+                info = p.get_device_info_by_index(i)
+                if info.get('maxInputChannels', 0) > 0:
+                    dev_index = i
+                    break
         stream = p.open(format=pyaudio.paInt16, channels=1, rate=RATE,
                         input=True, input_device_index=dev_index, frames_per_buffer=FRAME_SIZE)
         ringbuf = collections.deque(maxlen=20)

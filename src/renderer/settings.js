@@ -15,6 +15,8 @@ class SettingsManager {
     this.elements.apiUrlRow = document.getElementById('settings-apiurl-row')
     this.elements.wakeWord = document.getElementById('settings-wakeword')
     this.elements.aiKeywords = document.getElementById('settings-aikeywords')
+    this.elements.mic = document.getElementById('settings-mic')
+    this.elements.endPause = document.getElementById('settings-endpause')
     this.elements.saveBtn = document.getElementById('btn-settings-save')
     this.elements.status = document.getElementById('settings-status')
     this.elements.gearBtn = document.getElementById('btn-gear')
@@ -37,6 +39,8 @@ class SettingsManager {
     if (cfg.apiUrl) this.elements.apiUrl.value = cfg.apiUrl
     if (cfg.wakeWord) this.elements.wakeWord.value = cfg.wakeWord
     if (cfg.aiKeywords) this.elements.aiKeywords.value = cfg.aiKeywords
+    if (cfg.endPause) this.elements.endPause.value = cfg.endPause
+    this._loadMics(cfg.micDevice || '')
     if (cfg.smtpHost) this.elements.smtpHost.value = cfg.smtpHost
     if (cfg.smtpPort) this.elements.smtpPort.value = cfg.smtpPort
     if (cfg.smtpUser) this.elements.smtpUser.value = cfg.smtpUser
@@ -62,6 +66,26 @@ class SettingsManager {
     const p = this.elements.provider.value
     const show = p === 'openai-custom' || p === 'local'
     this.elements.apiUrlRow.style.display = show ? '' : 'none'
+  }
+
+  async _loadMics(saved) {
+    const sel = this.elements.mic
+    if (!sel) return
+    sel.innerHTML = ''
+    const auto = document.createElement('option')
+    auto.value = ''
+    auto.textContent = 'Automático (primero disponible)'
+    sel.appendChild(auto)
+    try {
+      const devs = await window.api.listMicDevices()
+      for (const d of devs || []) {
+        const opt = document.createElement('option')
+        opt.value = d.name || String(d.index)
+        opt.textContent = d.name || `Micrófono ${d.index}`
+        sel.appendChild(opt)
+      }
+      if (saved) sel.value = saved
+    } catch {}
   }
 
   async toggle() {
@@ -119,6 +143,8 @@ class SettingsManager {
       configured: this.elements.provider.value === 'local' || !!this.elements.apiKey.value.trim(),
       wakeWord: ww || 'asistente',
       aiKeywords: this.elements.aiKeywords.value.trim() || 'ia,bot,asistente',
+      micDevice: this.elements.mic ? this.elements.mic.value : '',
+      endPause: Math.min(5, Math.max(0.5, parseFloat(this.elements.endPause.value) || 1.2)),
       smtpHost: this.elements.smtpHost.value.trim(),
       smtpPort: parseInt(this.elements.smtpPort.value) || 587,
       smtpUser: this.elements.smtpUser.value.trim(),
