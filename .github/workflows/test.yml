@@ -12,3 +12,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
       - run: npm test
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install onnxruntime numpy
+      - run: python src/main/wake.py --self-test

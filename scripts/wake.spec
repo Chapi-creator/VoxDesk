@@ -10,9 +10,9 @@ SRC = os.path.abspath(os.path.join(os.getcwd(), 'src', 'main'))
 a = Analysis(
     [os.path.join(SRC, 'wake.py')],
     pathex=[SRC],
-    binaries=collect_dynamic_libs('vosk') + collect_dynamic_libs('pyaudio'),
-    datas=[(os.path.join(SRC, 'vosk-model'), 'vosk-model')],
-    hiddenimports=[],
+    binaries=collect_dynamic_libs('vosk') + collect_dynamic_libs('pyaudio') + collect_dynamic_libs('onnxruntime') + collect_dynamic_libs('numpy'),
+    datas=[(os.path.join(SRC, 'vosk-model'), 'vosk-model'), (os.path.join(SRC, 'silero_vad.onnx'), '.')],
+    hiddenimports=['onnxruntime', 'numpy'],
     hookspath=[],
     runtime_hooks=[],
     excludes=['speech_recognition', 'webrtcvad', 'tensorflow', 'torch'],

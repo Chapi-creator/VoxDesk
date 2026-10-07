@@ -1,19 +1,49 @@
 import sys, os, json, re, struct, math, collections, time
 sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
-import vosk
-import pyaudio
+try:
+    import vosk
+    import pyaudio
+except ImportError:
+    vosk = None
+    pyaudio = None
 
-MODEL_PATH = os.path.join(
-    getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__))),
-    'vosk-model', 'vosk-model-small-es-0.42')
+BASE_DIR = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+MODEL_PATH = os.path.join(BASE_DIR, 'vosk-model', 'vosk-model-small-es-0.42')
+SILERO_PATH = os.path.join(BASE_DIR, 'silero_vad.onnx')
 RATE = 16000
-FRAME_MS = 30
-FRAME_SIZE = int(RATE * FRAME_MS / 1000)
+FRAME_MS = 32
+FRAME_SIZE = 512
 LEVEL_INTERVAL = 0.1
 LISTEN_TRIGGER = os.path.join(os.environ.get('TEMP', ''), 'voxdesk_listen_trigger')
 
 WAKE_WORDS = ['asistente']
 END_PAUSE = 1.2
+
+
+class SileroVad:
+    # Fase 8: VAD neuronal (MIT, ~2MB). Ventana 512 @16k. Sin él, se usa energía.
+    def __init__(self, model_path, threshold=0.5):
+        import onnxruntime
+        import numpy as np
+        self._np = np
+        self.threshold = threshold
+        self.sess = onnxruntime.InferenceSession(model_path, providers=['CPUExecutionProvider'])
+        self.sr = np.array(RATE, dtype=np.int64)
+        self.reset()
+
+    def reset(self):
+        np = self._np
+        self.h = np.zeros((2, 1, 64), dtype=np.float32)
+        self.c = np.zeros((2, 1, 64), dtype=np.float32)
+
+    def is_speech(self, frame):
+        np = self._np
+        x = np.frombuffer(frame, dtype=np.int16).astype(np.float32) / 32768.0
+        x = x[:512] if x.shape[0] >= 512 else np.pad(x, (0, 512 - x.shape[0]))
+        out, self.h, self.c = self.sess.run(
+            None, {'input': x.reshape(1, -1), 'sr': self.sr, 'h': self.h, 'c': self.c})
+        prob = float(out[0][0])
+        return prob >= self.threshold, prob
 
 def rms_level(frame):
     count = len(frame) // 2
@@ -78,7 +108,7 @@ def detect_wake(text, words):
     lower = text.lower()
     return any(re.search(r'(?<!\w)' + re.escape(w) + r'(?!\w)', lower) for w in words)
 
-def capture_speech(stream, timeout=15, initial_frames=None, end_pause=None):
+def capture_speech(stream, timeout=15, initial_frames=None, end_pause=None, vad=None):
     frames = []
     preroll = collections.deque(maxlen=20)
     triggered = False
@@ -88,31 +118,56 @@ def capture_speech(stream, timeout=15, initial_frames=None, end_pause=None):
     hp = HighPass()
     END = end_pause if end_pause else END_PAUSE
     floor = 0.02
+    consec = [0]
     pending = list(initial_frames) if initial_frames else None
+    if vad is not None:
+        try:
+            vad.reset()
+        except Exception:
+            vad = None
 
-    def consume(frame):
-        nonlocal triggered, frames, speech_ended, floor
+    def energy(frame):
+        nonlocal floor
         level = rms_level(frame)
         if level > 0.08:
-            is_speech = True
-        elif level > floor * 1.6:
-            is_speech = True
+            return True
+        if level > floor * 1.6:
+            return True
+        floor = 0.9 * floor + 0.1 * level
+        return False
+
+    def consume(frame):
+        nonlocal triggered, frames, speech_ended
+        level = rms_level(frame)
+        if vad is not None:
+            try:
+                is_speech, _ = vad.is_speech(frame)
+            except Exception:
+                is_speech = energy(frame)
         else:
-            is_speech = False
-            floor = 0.9 * floor + 0.1 * level
+            is_speech = energy(frame)
         if not triggered:
             preroll.append(frame)
             if is_speech:
-                consecutive = 0
-                for i in range(len(preroll) - 1, -1, -1):
-                    if rms_level(preroll[i]) > floor:
-                        consecutive += 1
-                    else:
-                        break
-                if consecutive >= 2:
-                    triggered = True
-                    frames = list(preroll)
-                    speech_ended = None
+                consec[0] += 1
+                if vad is not None:
+                    if consec[0] >= 2:
+                        triggered = True
+                        frames = list(preroll)
+                        speech_ended = None
+                else:
+                    n = 0
+                    for i in range(len(preroll) - 1, -1, -1):
+                        if rms_level(preroll[i]) > floor:
+                            n += 1
+                        else:
+                            break
+                    if n >= 2:
+                        triggered = True
+                        frames = list(preroll)
+                        speech_ended = None
+            else:
+                consec[0] = 0
         else:
             frames.append(frame)
             if not is_speech:
@@ -180,6 +235,33 @@ def list_devices():
     return devs
 
 
+def self_test():
+    # Sin micro ni vosk: verifica que Silero carga, infiere rápido y calla en silencio.
+    try:
+        import numpy as np
+    except ImportError:
+        print(json.dumps({'ok': False, 'error': 'falta numpy'}))
+        return 2
+    if not os.path.exists(SILERO_PATH):
+        print(json.dumps({'ok': False, 'error': 'sin modelo: ' + SILERO_PATH}))
+        return 2
+    try:
+        vad = SileroVad(SILERO_PATH)
+    except Exception as e:
+        print(json.dumps({'ok': False, 'error': 'no carga: ' + str(e)[:200]}))
+        return 1
+    silence = np.zeros(512, dtype=np.int16).tobytes()
+    t0 = time.time()
+    probs = []
+    for _ in range(5):
+        ok, p = vad.is_speech(silence)
+        probs.append(p)
+    dt = (time.time() - t0) / 5 * 1000
+    ok = all(p < 0.5 for p in probs)
+    print(json.dumps({'ok': ok, 'silence_max': round(max(probs), 4), 'ms_por_frame': round(dt, 2)}))
+    return 0 if ok else 1
+
+
 def main():
     global stream, p, _model, WAKE_WORDS, END_PAUSE
     import argparse
@@ -188,10 +270,14 @@ def main():
     ap.add_argument('--device', default='')
     ap.add_argument('--end-pause', type=float, default=1.2)
     ap.add_argument('--list-devices', action='store_true')
+    ap.add_argument('--self-test', action='store_true')
     args = ap.parse_args()
     if args.wakewords:
         WAKE_WORDS = [w.lower() for w in args.wakewords]
     END_PAUSE = args.end_pause
+
+    if args.self_test:
+        sys.exit(self_test())
 
     if args.list_devices:
         try:
@@ -201,6 +287,9 @@ def main():
         return
 
     try:
+        if vosk is None or pyaudio is None:
+            emit(error='Faltan dependencias de audio (vosk, pyaudio)')
+            return
         _model = vosk.Model(MODEL_PATH)
 
         rec = vosk.KaldiRecognizer(_model, RATE)
@@ -222,6 +311,13 @@ def main():
                         input=True, input_device_index=dev_index, frames_per_buffer=FRAME_SIZE)
         ringbuf = collections.deque(maxlen=20)
 
+        vad = None
+        if os.path.exists(SILERO_PATH):
+            try:
+                vad = SileroVad(SILERO_PATH)
+            except Exception:
+                vad = None
+
         while True:
             data = stream.read(FRAME_SIZE, exception_on_overflow=False)
             ringbuf.append(data)
@@ -237,7 +333,8 @@ def main():
             if os.path.exists(LISTEN_TRIGGER):
                 try: os.remove(LISTEN_TRIGGER)
                 except: pass
-                audio = capture_speech(stream, timeout=15, initial_frames=list(ringbuf))
+                audio = capture_speech(stream, timeout=15, initial_frames=list(ringbuf),
+                                         end_pause=args.end_pause, vad=vad)
                 if audio is not None:
                     recognize(audio)
                 else:
@@ -249,7 +346,8 @@ def main():
                 emit(wake=True)
                 rec = vosk.KaldiRecognizer(_model, RATE)
 
-                audio = capture_speech(stream, initial_frames=list(ringbuf))
+                audio = capture_speech(stream, initial_frames=list(ringbuf),
+                                         end_pause=args.end_pause, vad=vad)
                 if audio is not None:
                     recognize(audio)
                 else:

@@ -73,6 +73,8 @@ Lee la [Política de Privacidad](PRIVACY.md). Resumen:
 
 - `npm install` y `npm run setup` (descarga el modelo de voz, ~40 MB, solo una vez).
 - `npm start` para probar. `npm test` corre las pruebas. `npm run build` genera el instalador.
+- Voz: Vosk (transcripción) + Silero VAD neuronal (~2 MB, MIT, commiteado en `src/main/silero_vad.onnx`; +~15 MB al `wake.exe`). Sin el modelo, usa detector por energía.
+- `python src/main/wake.py --self-test` verifica el VAD sin micro.
 
 ## Publicar una release
 
