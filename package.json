@@ -1,6 +1,6 @@
 {
   "name": "voxdesk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Asistente de voz para Windows. Controla tu PC con comandos de voz: apps, archivos, macros, sistema, OCR e IA.",
   "main": "main.js",
   "scripts": {
