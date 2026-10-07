@@ -19,6 +19,7 @@ class SettingsManager {
     this.elements.endPause = document.getElementById('settings-endpause')
     this.elements.username = document.getElementById('settings-username')
     this.elements.proactivity = document.getElementById('settings-proactivity')
+    this.elements.voice = document.getElementById('settings-voice')
     this.elements.saveBtn = document.getElementById('btn-settings-save')
     this.elements.status = document.getElementById('settings-status')
     this.elements.gearBtn = document.getElementById('btn-gear')
@@ -43,6 +44,7 @@ class SettingsManager {
     if (cfg.aiKeywords) this.elements.aiKeywords.value = cfg.aiKeywords
     if (cfg.endPause) this.elements.endPause.value = cfg.endPause
     if (cfg.proactivity && this.elements.proactivity) this.elements.proactivity.value = cfg.proactivity
+    if (cfg.voice && this.elements.voice) this.elements.voice.value = cfg.voice
     try {
       const savedName = await window.api.getPreference('vox_name')
       if (savedName && this.elements.username) this.elements.username.value = savedName
@@ -153,6 +155,7 @@ class SettingsManager {
       micDevice: this.elements.mic ? this.elements.mic.value : '',
       endPause: Math.min(5, Math.max(0.5, parseFloat(this.elements.endPause.value) || 1.2)),
       proactivity: this.elements.proactivity ? this.elements.proactivity.value : 'total',
+      voice: this.elements.voice ? this.elements.voice.value : 'mexicana',
       smtpHost: this.elements.smtpHost.value.trim(),
       smtpPort: parseInt(this.elements.smtpPort.value) || 587,
       smtpUser: this.elements.smtpUser.value.trim(),

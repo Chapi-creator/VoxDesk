@@ -7,7 +7,7 @@
     "start": "electron .",
     "test": "node tests/run.js",
     "lint": "eslint .",
-    "setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/download-model.ps1",
+    "setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/download-model.ps1; powershell -NoProfile -ExecutionPolicy Bypass -File scripts/download-voices.ps1",
     "prebuild:wake": "npm run setup",
     "build:wake": "python -m PyInstaller --clean --noconfirm scripts/wake.spec",
     "build": "npm run build:wake && electron-builder build --win --x64",
@@ -49,6 +49,14 @@
       {
         "from": "dist/wake.exe",
         "to": "wake.exe"
+      },
+      {
+        "from": "vendor/piper",
+        "to": "piper"
+      },
+      {
+        "from": "vendor/voices",
+        "to": "voices"
       }
     ],
     "nsis": {

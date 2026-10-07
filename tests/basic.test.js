@@ -323,10 +323,29 @@ test('sin nada no actúa', () => {
   assert.equal(life.evaluate(ctxBase()), null)
 })
 
+console.log('\ntts dual (Fase 12)')
+const tts = require('../src/main/tts')
+test('getEngine sin vendor cae a sapi', () => {
+  const e = tts.getEngine('sistema')
+  assert.equal(e.engine, 'sapi')
+})
+test('getEngine prefiere piper si hay vendor', () => {
+  const fs = require('fs')
+  const path = require('path')
+  const vendor = path.join(__dirname, '..', 'vendor')
+  if (!fs.existsSync(path.join(vendor, 'piper', 'piper.exe'))) {
+    console.log('    (sin vendor, se omite)')
+    return
+  }
+  const e = tts.getEngine('mexicana')
+  assert.equal(e.engine, 'piper')
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }
-run6()
+
+await run6()
 }
 
 run()

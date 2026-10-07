@@ -4,7 +4,7 @@ const logger = require('./logger')
 
 let _userDataPath = ''
 
-const DEFAULTS = { apiKey: '', provider: 'gemini', model: 'gemini-flash-latest', apiUrl: '', configured: false, wakeWord: 'asistente', aiKeywords: 'ia,bot,asistente', micDevice: '', endPause: 1.2, proactivity: 'total', smtpHost: '', smtpPort: 587, smtpUser: '', smtpPass: '', smtpFrom: '', systemPrompt: '', temperature: 0.7, maxTokens: 4096 }
+const DEFAULTS = { apiKey: '', provider: 'gemini', model: 'gemini-flash-latest', apiUrl: '', configured: false, wakeWord: 'asistente', aiKeywords: 'ia,bot,asistente', micDevice: '', endPause: 1.2, proactivity: 'total', voice: 'mexicana', smtpHost: '', smtpPort: 587, smtpUser: '', smtpPass: '', smtpFrom: '', systemPrompt: '', temperature: 0.7, maxTokens: 4096 }
 
 function _getPath() {
   return path.join(_userDataPath, 'assistant-config.json')
