@@ -246,6 +246,14 @@ test('VoiceModule: start/stop cambian estado', async () => {
   assert.deepEqual(states2, [true, false])
 })
 
+test('sprites Vox existen y son PNG válidos', () => {
+  for (const n of ['idle', 'blink', 'listening', 'thinking', 'speaking-open', 'speaking-closed', 'error']) {
+    const b = fs.readFileSync(path.join(__dirname, '..', 'assets/vox', `vox-${n}.png`))
+    assert.ok(b.length > 2000, n)
+    assert.deepEqual([...b.slice(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10])
+  }
+})
+
 async function run() {
   for (const [name, fn] of queue) {
     try { await fn(); passed++; console.log(`  ✓ ${name}`) }
