@@ -35,6 +35,7 @@ function loadPending() {
     const remaining = r.timestamp - Date.now()
     if (remaining <= 0) {
       memory.removeReminder(r.id)
+      schedule(`Te lo perdiste: ${r.message}`, 3000)
     } else {
       schedule(r.message, remaining)
     }

@@ -24,7 +24,7 @@ class Mascot {
   _loop(ts) {
     requestAnimationFrame(this._loop)
     if (document.hidden || !this.ctx) return
-    const dt = Math.min(50, ts - (this._last || ts))
+    const dt = Math.min(50, Math.max(0, ts - (this._last || ts)))
     this._last = ts
     this.t += dt
     this.nextBlink -= dt

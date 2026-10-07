@@ -5,7 +5,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node tests/basic.test.js",
+    "test": "node tests/run.js",
     "lint": "eslint .",
     "setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/download-model.ps1",
     "prebuild:wake": "npm run setup",
@@ -14,7 +14,7 @@
     "build:setup": "npm run build:wake && electron-builder build --win nsis --x64"
   },
   "devDependencies": {
-    "electron": "^33.0.0",
+    "electron": "^44.6.0",
     "electron-builder": "^25.0.0",
     "eslint": "^10.12.0"
   },
@@ -68,6 +68,6 @@
   },
   "dependencies": {
     "electron-updater": "^6.8.9",
-    "nodemailer": "^9.0.3"
+    "nodemailer": "^10.0.15"
   }
 }
