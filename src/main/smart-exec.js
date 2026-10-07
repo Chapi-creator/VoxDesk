@@ -499,6 +499,14 @@ const PATTERNS = [
     run: ps_systemInfo,
     capture: true,
     msg: 'Obteniendo info del sistema' },
+  { match: /\bsistemas\b|estado de (los )?sistemas|reporte del sistema/i,
+    handler: async () => {
+      const vitals = require('./vitals')
+      const s = await vitals.snapshot()
+      return vitals.reportText(s)
+    },
+    priority: 10,
+    msg: 'Reportando sistemas' },
   { match: /espacio\s+(en\s+)?([a-z]):?/i,
     run: (m) => ps_diskSpace(m[2]),
     capture: true,

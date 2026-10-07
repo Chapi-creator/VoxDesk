@@ -347,6 +347,88 @@ test('getEngine prefiere piper si hay vendor', () => {
   assert.equal(e.engine, 'piper')
 })
 
+console.log('\nagente (Fase 14a, stubs)')
+const agent = require('../src/main/agent')
+
+async function atest(name, fn) {
+  try { await fn(); passed++; console.log(`  ✓ ${name}`) }
+  catch (e) { failed++; console.log(`  ✗ ${name}: ${e.message}`) }
+}
+
+test('parsePlan extrae JSON entre texto', () => {
+  const steps = agent.parsePlan('Claro: {"steps": [{"action": "abre chrome"}, {"action": "qué hora es"}]} listo')
+  assert.equal(steps.length, 2)
+  assert.equal(steps[0].action, 'abre chrome')
+})
+
+test('parsePlan rechaza basura y vacíos', () => {
+  assert.equal(agent.parsePlan('no hay json aquí'), null)
+  assert.equal(agent.parsePlan('{"steps": []}'), null)
+  assert.equal(agent.parsePlan(null), null)
+})
+
+await atest('run feliz ejecuta y resume', async () => {
+  const seen = []
+  const r = await agent.run('x', {
+    ask: async () => '{"steps": [{"action": "a"}, {"action": "b"}]}',
+    execStep: async (a) => { seen.push(a); return { success: true, message: a } },
+    confirm: async () => true,
+  })
+  assert.deepEqual(seen, ['a', 'b'])
+  assert.equal(r.ok, true)
+  assert.ok(r.message.includes('2/2'))
+})
+
+await atest('run cancelado no ejecuta', async () => {
+  let n = 0
+  const r = await agent.run('x', {
+    ask: async () => '{"steps": [{"action": "a"}]}',
+    execStep: async () => { n++; return { success: true } },
+    confirm: async () => false,
+  })
+  assert.equal(n, 0)
+  assert.equal(r.cancelled, true)
+})
+
+await atest('run replanifica un fallo y termina', async () => {
+  let asks = 0
+  const r = await agent.run('x', {
+    ask: async () => { asks++; return asks === 1 ? '{"steps": [{"action": "a"}, {"action": "malo"}]}' : '{"steps": [{"action": "bueno"}]}' },
+    execStep: async (a) => (a === 'malo' ? { success: false, message: 'falló' } : { success: true, message: a }),
+    confirm: async () => true,
+  })
+  assert.equal(asks, 2)
+  assert.equal(r.ok, true)
+  assert.ok(r.message.includes('2/3'))
+})
+
+console.log('\nvitales (Fase 14b, puros)')
+const vitals = require('../src/main/vitals')
+
+test('parseSnapshot lee el formato', () => {
+  const s = vitals.parseSnapshot('RAM:85|DISCO:62|DISCOGB:120.5|BAT:90|UP:1.5|CPU:12')
+  assert.equal(s.ramFree, 85)
+  assert.equal(s.diskFreeGB, 120.5)
+  assert.equal(s.batt, 90)
+})
+
+test('parseSnapshot basura da -1', () => {
+  const s = vitals.parseSnapshot('hola')
+  assert.equal(s.ramFree, -1)
+  assert.equal(s.cpu, -1)
+})
+
+test('score penaliza disco y ram', () => {
+  assert.equal(vitals.score({ ramFree: 90, diskFree: 80, diskFreeGB: 200, batt: -1, upDays: 1, cpu: 5 }), 100)
+  assert.ok(vitals.score({ ramFree: 10, diskFree: 5, diskFreeGB: 20, batt: 10, upDays: 9, cpu: 90 }) < 40)
+})
+
+test('reportText resume en una línea', () => {
+  const t = vitals.reportText({ ramFree: 85, diskFree: 62, diskFreeGB: 120.5, batt: -1, upDays: 0.5, cpu: 12 })
+  assert.ok(t.startsWith('Sistemas al 100%'))
+  assert.ok(t.includes('120.5 GB'))
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

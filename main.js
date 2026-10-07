@@ -196,6 +196,16 @@ async function _handleOne(transcript, _depth = 0) {  if (!transcript) return { s
     return { success: true, message: 'Macro ejecutada', speak: true }
   }
 
+  // Fase 14a: autonomía — "encárgate de X" planifica y ejecuta con tu aprobación.
+  const agentMatch = t.match(/^(enc[aá]rgate de|modo aut[oó]nomo|haz todo esto|plan:?)\s+(.+)/i)
+  if (agentMatch) {
+    const goal = agentMatch[2].trim()
+    if (!(_cfg.provider === 'local' || _cfg.apiKey)) {
+      return { success: false, message: 'Para planes autónomos configura una IA en Ajustes (online u Ollama local).', speak: true }
+    }
+    return await runAgent(goal)
+  }
+
   const smartResult = await smartExec.execute(t)
   if (smartResult) {
     if (smartResult._macro && Array.isArray(smartResult._macro)) {
@@ -389,6 +399,28 @@ wake.onError = (error) => {
   if (mainWindow) mainWindow.webContents.send('wake:result', { success: false, message: error })
 }
 
+const agent = require('./src/main/agent')
+
+async function runAgent(goal) {
+  const res = await agent.run(goal, {
+    ask: (p) => llm.ask(p),
+    execStep: (a) => handleAndTrack(a),
+    confirm: async (steps) => {
+      if (!mainWindow) return false
+      const { response } = await dialog.showMessageBox(mainWindow, {
+        type: 'question',
+        buttons: ['Ejecutar plan', 'Cancelar'],
+        defaultId: 1,
+        title: 'Plan autónomo',
+        message: 'Voy a ejecutar estos pasos:',
+        detail: steps.map((s, i) => `${i + 1}. ${s.action}`).join('\n').substring(0, 2000),
+      })
+      return response === 0
+    },
+  })
+  return { success: res.ok || !!res.cancelled, message: res.message + '\n\n¿Algo más?', speak: true }
+}
+
 // Fase 11: loop de vida. Cada 60s evalúa contexto y Vox actúa por su cuenta.
 // Voz solo si proactivity=total, fuera de horario silencioso (22-8) y hay texto.
 async function lifeTick() {
@@ -428,6 +460,29 @@ async function lifeTick() {
     if (!a) return
     if (a.stamp) for (const [k, v] of Object.entries(a.stamp)) memory.set('vox_' + k, v)
     if (a.streakDone) mood.markStreakDone()
+    // Fase 14b: briefing matutino con datos reales (1 vez al día, best-effort).
+    if (a.id === 'morning') {
+      try {
+        const v = await require('./src/main/vitals').snapshot()
+        const bits = []
+        if (v.batt >= 0) bits.push(`batería al ${v.batt}%`)
+        if (v.diskFreeGB >= 0) bits.push(`disco C con ${v.diskFreeGB} GB libres`)
+        if (bits.length) a.text += ' Datos: ' + bits.join(', ') + '.'
+      } catch {}
+    }
+    // Fase 14b: alerta de disco lleno (cada 30 ticks ≈ 30 min, burbuja sin voz).
+    if (_tickN % 30 === 0) {
+      try {
+        const today = new Date(now).toISOString().slice(0, 10)
+        if (memory.get('vox_last_disk') !== today) {
+          const v = await require('./src/main/vitals').snapshot()
+          if (v.diskFree >= 0 && v.diskFree < 10) {
+            memory.set('vox_last_disk', today)
+            if (mainWindow) mainWindow.webContents.send('vox:life', { state: 'worried', text: `Disco C al ${Math.round(100 - v.diskFree)}% lleno (${v.diskFreeGB} GB libres). Libera espacio cuando puedas.`, speak: false })
+          }
+        }
+      } catch {}
+    }
     if (a.id === 'sleep') {
       _lastSleepState = 'sleep'
       if (mainWindow) mainWindow.webContents.send('vox:life', { state: 'sleep', text: '' })
