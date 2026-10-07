@@ -129,6 +129,15 @@ const PATTERNS = [
     run: (m) => chromeNewTab(m[1]),
     msg: (m) => `Abriendo nueva pestaña: ${m[1]}` },
 
+  { match: /^(modo silencio|no me hables|descansa|c[aá]llate un rato)$/i,
+    handler: () => { memory.set('vox_quiet', Date.now()); return 'Descanso. Háblame cuando quieras y vuelvo.' },
+    priority: 10,
+    msg: 'Modo silencio' },
+  { match: /^(despierta|ya puedes hablar|modo normal|vuelve)$/i,
+    handler: () => { memory.del('vox_quiet'); return 'Aquí estoy. ¿Qué hacemos?' },
+    priority: 10,
+    msg: 'Fin del silencio' },
+
   // --- EMAIL / WHATSAPP ---
   { match: /envía\s+(un\s+)?(email|correo|mail)\s+a\s+(.+?)\s+(?:asunto\s+(.+?)\s+)?diciendo\s+(.+)/i,
     handler: async (m) => { const result = await email.send(m[3].trim(), m[4]?.trim() || '', m[5].trim()); return result },
@@ -224,6 +233,19 @@ const PATTERNS = [
     msg: (m) => `Temporizador de ${m[2]} ${m[3] || 'segundos'} iniciado` },
 
   // --- NEWS ---
+  { match: /cu[eé]ntame (las )?noticias|dime titulares|titulares|noticias (de hoy|del d[ií]a)/i,
+    handler: async () => {
+      try {
+        const news = require('./news')
+        const hs = await news.headlines()
+        if (!hs.length) return 'No pude traer titulares (¿hay internet?).'
+        return 'Titulares: ' + hs.map((h, i) => `${i + 1}. ${h}`).join(' ')
+      } catch {
+        return 'No pude traer titulares (¿hay internet?).'
+      }
+    },
+    priority: 10,
+    msg: 'Leyendo titulares' },
   { match: /noticias\s*(?:de\s+actualidad|del\s+d[ií]a)?|qu[eé]\s+(pasó|pasa)\s+en\s+el\s+mundo|dame\s+las\s+noticias/i,
     run: (m) => `$r = Invoke-WebRequest -Uri "https://newsapi.org/v2/top-headlines?country=us&pageSize=5&apiKey=demo" -UseBasicParsing -ErrorAction SilentlyContinue; if ($r) { ($r.Content | ConvertFrom-Json).articles | ForEach-Object { Write-Output "$($_.title) - $($_.source.name)" } } else { Write-Output "No pude obtener noticias. Configura una API key en newsapi.org" }`,
     capture: true,

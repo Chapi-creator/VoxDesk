@@ -480,6 +480,31 @@ test('lee esto rutea al lector', () => {
   assert.equal(top.pattern.msg, 'Leyendo selección')
 })
 
+console.log('\nnoticias + silencio (B2)')
+const news = require('../src/main/news')
+
+test('parseRss saca 5 titulares limpios', () => {
+  const xml = '<rss><channel>' + [1, 2, 3, 4, 5, 6].map(i => `<item><title>Noticia ${i} <![CDATA[x]]> - Medio ${i}</title></item>`).join('') + '</channel></rss>'
+  const hs = news.parseRss(xml)
+  assert.equal(hs.length, 5)
+  assert.equal(hs[0], 'Noticia 1 x')
+})
+
+test('noticias RSS gana al viejo', () => {
+  const smart = require('../src/main/smart-exec')
+  const top = smart.route('cuéntame las noticias')[0]
+  assert.equal(top.pattern.msg, 'Leyendo titulares')
+})
+
+test('silencio no colisiona', () => {
+  const smart = require('../src/main/smart-exec')
+  assert.equal(smart.route('modo silencio')[0].pattern.msg, 'Modo silencio')
+  assert.equal(smart.route('vuelve')[0].pattern.msg, 'Fin del silencio')
+  const saludo = smart.route('buenas noches')[0]
+  assert.ok(/buenas/.test(String(saludo.pattern.match)))
+  assert.notEqual(saludo.pattern.msg, 'Modo silencio')
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

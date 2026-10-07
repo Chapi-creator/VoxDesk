@@ -465,6 +465,10 @@ let _lastBattery = null
 async function handleAndTrack(transcript, depth = 0) {
   _lastCmdAt = Date.now()
   _lastSleepState = ''
+  // Fase 16B2: cualquier orden levanta el silencio (salvo las que lo ponen/quitan).
+  if (!/^(modo silencio|no me hables|descansa|c[aá]llate un rato|despierta|ya puedes hablar|modo normal|vuelve)$/i.test(transcript)) {
+    try { memory.del('vox_quiet') } catch {}
+  }
   const r = await _handleOne(transcript, depth)
   try {
     if (r && r.success) {
@@ -545,6 +549,12 @@ async function lifeTick() {
   try {
     const cfg = config.load()
     if (cfg.proactivity === 'off') return
+    // Fase 16B2: silencio por voz (12h o hasta que le hables).
+    try {
+      const q = memory.get('vox_quiet')
+      if (q && Date.now() - q < 12 * 3600000) return
+      if (q) memory.del('vox_quiet')
+    } catch {}
     _tickN++
     const now = Date.now()
     if (_tickN % 10 === 0 || _lastBattery === null) {
