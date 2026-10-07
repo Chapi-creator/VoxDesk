@@ -60,6 +60,44 @@ function matchCustom(text) {
   return null
 }
 
+// Fase 16B1: caché de intenciones aprendidas (frase normalizada -> acción).
+const CACHE_MAX = 200
+
+function getCache() {
+  const d = load()
+  return d.cache || {}
+}
+
+function saveCachePair(normText, action) {
+  if (!normText || !action) return
+  const d = load()
+  d.cache = d.cache || {}
+  const k = d.cache[normText]
+  if (k) { k.uses++; k.action = action; k.at = Date.now() }
+  else d.cache[normText] = { action, uses: 1, at: Date.now() }
+  const keys = Object.keys(d.cache)
+  if (keys.length > CACHE_MAX) {
+    keys.sort((a, b) => d.cache[a].at - d.cache[b].at)
+    for (const old of keys.slice(0, keys.length - CACHE_MAX)) delete d.cache[old]
+  }
+  save(d)
+}
+
+function bumpCache(normText, delta) {
+  const d = load()
+  if (!d.cache || !d.cache[normText]) return false
+  d.cache[normText].uses = Math.max(0, d.cache[normText].uses + delta)
+  if (d.cache[normText].uses === 0) delete d.cache[normText]
+  save(d)
+  return true
+}
+
+function removeCache(normText) {
+  const d = load()
+  if (d.cache && d.cache[normText]) { delete d.cache[normText]; save(d); return true }
+  return false
+}
+
 let _recording = false
 
 function startRecording() { _recording = true }
@@ -112,4 +150,4 @@ function listReminders() {
   return d.reminders || []
 }
 
-module.exports = { setUserDataPath, get, set, del, list, addCommand, removeCommand, matchCustom, startRecording, stopRecording, isRecording, saveMacro, loadMacro, deleteMacro, listMacros, saveReminder, removeReminder, listReminders }
+module.exports = { setUserDataPath, get, set, del, list, addCommand, removeCommand, matchCustom, getCache, saveCachePair, bumpCache, removeCache, startRecording, stopRecording, isRecording, saveMacro, loadMacro, deleteMacro, listMacros, saveReminder, removeReminder, listReminders }

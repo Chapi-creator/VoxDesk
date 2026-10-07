@@ -241,7 +241,18 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
 
   // Fase 13: fuzzy — entiende aunque la frase varíe ("apaga la compu").
   // Alta confianza ejecuta vía frase canónica; media pregunta; baja sigue al LLM.
+  // Fase 16B1: primero la caché aprendida (tus frases exactas ganan al fuzzy).
   if (!_fromFuzzy) {
+    const norm = understand.normalize(t)
+    const cache = memory.getCache()
+    let bestKey = null, bestSim = 0
+    for (const k of Object.keys(cache)) {
+      const c = understand.sim(norm, k)
+      if (c > bestSim) { bestSim = c; bestKey = k }
+    }
+    if (bestKey && bestSim >= 0.8 && cache[bestKey].action !== t) {
+      return await _handleOne(cache[bestKey].action, _depth + 1, true)
+    }
     const fz = understand.route(t)
     if (fz && fz.conf >= understand.HI) {
       return await _handleOne(fz.canon + (fz.args ? ' ' + fz.args : ''), _depth + 1, true)
@@ -428,6 +439,13 @@ ipcMain.handle('tts:check', () => tts.isAvailable())
 ipcMain.handle('memory:get', (_e, key) => memory.get(key))
 ipcMain.handle('memory:set', (_e, key, value) => memory.set(key, value))
 
+// Fase 16B1: 👍 confirma el mapeo aprendido, 👎 lo borra.
+ipcMain.handle('cache:feedback', (_e, transcript, good) => {
+  const k = understand.normalize(transcript)
+  if (good) return memory.bumpCache(k, 3)
+  return memory.removeCache(k)
+})
+
 ipcMain.handle('help:get', () => {
   const cmds = Object.values(require('./src/shared/constants').COMMANDS)
   const patterns = require('./src/main/smart-exec').getHelp()
@@ -458,12 +476,12 @@ async function handleAndTrack(transcript, depth = 0) {
     }
     mood.pushCmdTime()
     // Fase 13: contexto para pronombres (las meta-órdenes no pisan lo referido).
-    const _isMeta = /^(rep[ií]telo|repite eso|otra vez|de nuevo)$/i.test(transcript)
-      || /^(analiza|explica|explícame|explicitame|resume|traduce)\s+(eso|esto|lo anterior|lo)$/i.test(transcript)
-      || /^(analiza|explica|resume|explícame|explicitame)$/i.test(transcript)
-      || /^(y\s+)?eso\s+(que significa|qué significa|qué es)$/i.test(transcript)
-    if (!_isMeta) {
+    if (!understand.isMeta(transcript)) {
       memory.set('vox_ctx', { lastAction: transcript, lastResult: String((r && r.message) || '').slice(0, 2000), at: Date.now() })
+    }
+    // Fase 16B1: aprende el par frase->acción de cada éxito (fuzzy lo reutiliza).
+    if (r && r.success && !understand.isMeta(transcript)) {
+      try { memory.saveCachePair(understand.normalize(transcript), transcript) } catch {}
     }
   } catch {}
   return r

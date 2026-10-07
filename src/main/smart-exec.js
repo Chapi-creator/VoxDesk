@@ -468,6 +468,10 @@ const PATTERNS = [
   { match: /cortar/i,
     run: `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^x')`,
     msg: 'Cortado' },
+  { match: /lee esto|l[eé]eme (la|lo)|lee (la|lo) seleccionado/i,
+    run: `$old = $null; try { $old = Get-Clipboard -Raw -ErrorAction Stop } catch {}; Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^c'); Start-Sleep -Milliseconds 400; $t = ''; try { $t = Get-Clipboard -Raw -ErrorAction Stop } catch {}; if ($null -ne $old) { try { Set-Clipboard -Value $old -ErrorAction Stop } catch {} }; if ($t) { $t.Substring(0, [Math]::Min(2000, $t.Length)) } else { 'No hay nada seleccionado' }`,
+    capture: true,
+    msg: 'Leyendo selección' },
 
   // --- SYSTEM ---
   { match: /vac(i|í)a\s+(la\s+)?papelera/i,

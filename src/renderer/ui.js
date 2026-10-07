@@ -197,6 +197,16 @@ class UIManager {
     const q = document.createElement('span'); q.className = 'h-q'; q.textContent = transcript
     const a = document.createElement('span'); a.className = 'h-a'; a.textContent = response
     e.appendChild(q); e.appendChild(a)
+    if (transcript && !String(transcript).startsWith('[')) {
+      const fb = document.createElement('span'); fb.className = 'h-fb'
+      const up = document.createElement('button'); up.className = 'h-fb-btn'; up.textContent = '👍'; up.title = 'Bien así'
+      const down = document.createElement('button'); down.className = 'h-fb-btn'; down.textContent = '👎'; down.title = 'Mal, no lo repitas'
+      const done = (btn) => { up.disabled = true; down.disabled = true; btn.classList.add('picked') }
+      up.addEventListener('click', () => { if (this.onFeedback) this.onFeedback(transcript, true); done(up) })
+      down.addEventListener('click', () => { if (this.onFeedback) this.onFeedback(transcript, false); done(down) })
+      fb.appendChild(up); fb.appendChild(down)
+      e.appendChild(fb)
+    }
     this.elements.history.appendChild(e)
     const MAX = 10
     while (this.elements.history.children.length > MAX) this.elements.history.removeChild(this.elements.history.firstChild)

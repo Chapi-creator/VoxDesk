@@ -457,6 +457,29 @@ test('validateKey acepta vacía en LAN', () => {
   assert.equal(llm.validateKey('gemini', 'AIza123456789'), null)
 })
 
+console.log('\ncaché + feedback (B1)')
+test('isMeta detecta meta-órdenes', () => {
+  const understand = require('../src/main/understand')
+  assert.ok(understand.isMeta('repítelo'))
+  assert.ok(understand.isMeta('analiza eso'))
+  assert.ok(!understand.isMeta('apaga el equipo'))
+})
+
+test('caché guarda, usa y borra', () => {
+  memory.saveCachePair('apaga la equipo', 'apaga el equipo')
+  assert.equal(memory.getCache()['apaga la equipo'].action, 'apaga el equipo')
+  assert.equal(memory.bumpCache('apaga la equipo', 3), true)
+  assert.equal(memory.getCache()['apaga la equipo'].uses, 4)
+  assert.equal(memory.removeCache('apaga la equipo'), true)
+  assert.equal(memory.getCache()['apaga la equipo'], undefined)
+})
+
+test('lee esto rutea al lector', () => {
+  const smart = require('../src/main/smart-exec')
+  const top = smart.route('lee esto')[0]
+  assert.equal(top.pattern.msg, 'Leyendo selección')
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

@@ -76,4 +76,13 @@ function route(text) {
   return best && best.conf > 0 ? best : null
 }
 
-module.exports = { normalize, lev, sim, route, INTENTS, HI: 0.82, MID: 0.6 }
+// Meta-órdenes que operan sobre lo anterior (no se guardan ni cachean).
+function isMeta(text) {
+  const t = String(text || '')
+  return /^(rep[ií]telo|repite eso|otra vez|de nuevo)$/i.test(t)
+    || /^(analiza|explica|explícame|explicitame|resume|traduce)\s+(eso|esto|lo anterior|lo)$/i.test(t)
+    || /^(analiza|explica|resume|explícame|explicitame)$/i.test(t)
+    || /^(y\s+)?eso\s+(que significa|qué significa|qué es)$/i.test(t)
+}
+
+module.exports = { normalize, lev, sim, route, isMeta, INTENTS, HI: 0.82, MID: 0.6 }

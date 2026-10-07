@@ -70,6 +70,10 @@
     ui.setIdle()
   }
 
+  ui.onFeedback = (transcript, good) => {
+    window.api.cacheFeedback(transcript, good).catch(() => {})
+  }
+
   voice.onResult = (transcript) => { handleCommand(transcript) }
 
   voice.onError = (error) => {

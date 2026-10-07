@@ -223,6 +223,22 @@ test('VoiceModule: start/stop cambian estado', async () => {
   assert.deepEqual(states2, [true, false])
 })
 
+test('UIManager: historial con feedback', () => {
+  const doc = fakeDocument()
+  const UIManager = loadClass('src/renderer/ui.js', 'UIManager', { document: doc, requestAnimationFrame: () => 0 })
+  const ui = new UIManager()
+  ui.init()
+  let fb = null
+  ui.onFeedback = (t, good) => { fb = [t, good] }
+  ui.pushHistory('hola', 'ok')
+  const e = doc.getElementById('history').children[0]
+  assert.equal(e.children.length, 3)
+  e.children[2].children[0].listeners.click[0]()
+  assert.deepEqual(fb, ['hola', true])
+  ui.pushHistory('[sistema]', 'aviso')
+  assert.equal(doc.getElementById('history').children[1].children.length, 2)
+})
+
 async function run() {
   for (const [name, fn] of queue) {
     try { await fn(); passed++; console.log(`  ✓ ${name}`) }

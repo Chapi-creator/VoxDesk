@@ -230,6 +230,14 @@
     .hist-entry .h-q { color: rgba(79,195,247,0.5); }
     .hist-entry .h-q::before { content: '› '; }
     .hist-entry .h-a { color: rgba(255,255,255,0.45); }
+    .h-fb { display: inline-flex; gap: 4px; margin-left: 8px; }
+    .h-fb-btn {
+      background: none; border: none; cursor: pointer; font-size: 10px;
+      opacity: 0.35; padding: 0 2px; filter: grayscale(1);
+    }
+    .h-fb-btn:hover { opacity: 1; filter: none; }
+    .h-fb-btn:disabled { cursor: default; opacity: 0.35; }
+    .h-fb-btn.picked { opacity: 1; filter: none; }
 
     .bottom-row {
       display: flex; align-items: center; justify-content: space-between;
