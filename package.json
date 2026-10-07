@@ -5,6 +5,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "test": "node tests/basic.test.js",
+    "lint": "eslint .",
     "setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/download-model.ps1",
     "prebuild:wake": "npm run setup",
     "build:wake": "python -m PyInstaller --clean --noconfirm scripts/wake.spec",
@@ -13,13 +15,16 @@
   },
   "devDependencies": {
     "electron": "^33.0.0",
-    "electron-builder": "^25.0.0"
+    "electron-builder": "^25.0.0",
+    "eslint": "^10.12.0"
   },
   "build": {
     "appId": "com.voxdesk.app",
     "productName": "VoxDesk",
     "win": {
-      "target": ["nsis"]
+      "target": [
+        "nsis"
+      ]
     },
     "publish": [
       {

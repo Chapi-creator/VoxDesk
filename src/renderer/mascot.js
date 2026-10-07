@@ -1,6 +1,7 @@
-// Vox: mascota 2D dibujada en canvas. Sin assets, sin dependencias.
+﻿// Vox: mascota 2D dibujada en canvas. Sin assets, sin dependencias.
 // Estados: idle | listening | thinking | speaking | error. Click = hablar.
 // ponytail: formas baratas + un solo RAF; se pausa con la ventana oculta.
+/*exported Mascot*/
 class Mascot {
   constructor(canvas, onTap) {
     this.c = canvas

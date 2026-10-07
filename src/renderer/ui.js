@@ -1,3 +1,5 @@
+﻿/*global Mascot*/
+/*exported UIManager*/
 class UIManager {
   constructor() {
     this.elements = {}

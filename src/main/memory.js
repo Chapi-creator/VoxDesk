@@ -48,11 +48,14 @@ function removeCommand(trigger) {
   save(d)
   return d.custom_commands.length < before
 }
+function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') }
+
 function matchCustom(text) {
   const d = load()
   const lower = text.toLowerCase().trim()
   for (const c of d.custom_commands) {
-    if (lower.includes(c.trigger)) return c
+    // Fase 6: bordes de palabra, no substring ("luz" no matchea "luces")
+    if (new RegExp(`(?<!\\w)${escRe(c.trigger)}(?!\\w)`).test(lower)) return c
   }
   return null
 }

@@ -1,5 +1,6 @@
-// Onboarding en 3 pasos: micrófono real → palabra clave → prueba en vivo.
+﻿// Onboarding en 3 pasos: micrófono real → palabra clave → prueba en vivo.
 // ponytail: getUserMedia del navegador para el medidor (sin backend), el resto reusa APIs existentes.
+/*exported OnboardingManager*/
 class OnboardingManager {
   constructor() {
     this.onTry = null // (texto) => ejecuta un comando de prueba

@@ -1,15 +1,13 @@
 const { exec } = require('child_process')
 const path = require('path')
-const fs = require('fs')
 const os = require('os')
 const http = require('http')
 const tts = require('./tts')
 const memory = require('./memory')
 const logger = require('./logger')
 const email = require('./email')
+const { runPs } = require('./run-ps')
 
-let _sfc = 0
-function tmpFile(pref) { return path.join(os.tmpdir(), `_ai_${pref}_${process.pid}_${++_sfc}.ps1`) }
 
 // Fase 3: main.js inyecta el diálogo real con setConfirm. Sin inyectar, auto-sí (tests).
 let _confirmFn = null
@@ -313,7 +311,6 @@ const PATTERNS = [
   { match: /imprime\s+(.+?)(?:\s+(?:en|por)\s+(.+))?/i,
     run: (m) => {
       const file = m[1].trim()
-      const printer = m[2]?.trim() || ''
       return `Start-Process -FilePath ${psStr(file)} -Verb Print -ErrorAction SilentlyContinue; if (-not $?) { Write-Output 'No pude imprimir. Asegúrate de que la ruta existe.' }`
     },
     msg: (m) => `Imprimiendo ${m[1]}` },
@@ -786,7 +783,6 @@ public class MK {
   { match: /env[ií]a\s+(un\s+)?whatsapp\s+(?:a|para)\s+(.+?)\s+(?:diciendo|con\s+el\s+texto|que\s+diga)\s+(.+)/i,
     run: (m) => {
       const text = encodeURIComponent(m[3].trim())
-      const name = encodeURIComponent(m[2].trim())
       return `start "https://web.whatsapp.com/send?phone=&text=${text}&type=phone_number&app_absent=1"`
     },
     msg: (m) => `Abriendo WhatsApp para enviar a ${m[2]}` },
@@ -1047,7 +1043,7 @@ async function _findChromePort() {
       })
       _chromePort = port
       return port
-    } catch {}
+    } catch (e) { logger.warn('Chrome sin remote-debugging en puerto', port, '-', e.message) }
   }
   return null
 }
@@ -1076,7 +1072,7 @@ function startChromeDebug() {
 
 async function chromeListTabs() {
   try {
-    const port = await startChromeDebug()
+    await startChromeDebug()
     const tabs = await chromeDebugUrl('/json')
     if (!tabs || !tabs.length) return 'No hay pestañas abiertas'
     return tabs.map((t, i) => `${i+1}. ${t.title || 'sin título'} — ${t.url || ''}`).slice(0, 20).join('\n')
@@ -1260,27 +1256,7 @@ function ps_events(filter) {
   ].filter(Boolean).join('\n')
 }
 
-function runPs(psCode) {
-  const tmpPS = tmpFile('smart')
-  fs.writeFileSync(tmpPS, '\ufeff' + psCode, 'utf8')
-  return new Promise((resolve) => {
-    exec(`powershell -NoProfile -ExecutionPolicy Bypass -File "${tmpPS}"`, { timeout: 30000 }, () => {
-      try { fs.unlinkSync(tmpPS) } catch {}
-      resolve()
-    })
-  })
-}
 
-function runPsCapture(psCode) {
-  const tmpPS = tmpFile('smart_cap')
-  fs.writeFileSync(tmpPS, '\ufeff' + psCode, 'utf8')
-  return new Promise((resolve) => {
-    exec(`powershell -NoProfile -ExecutionPolicy Bypass -File "${tmpPS}"`, { timeout: 30000 }, (err, stdout) => {
-      try { fs.unlinkSync(tmpPS) } catch {}
-      resolve(stdout ? stdout.trim() : '')
-    })
-  })
-}
 
 async function execute(text) {
   const parser = require('./command-parser')
@@ -1288,7 +1264,7 @@ async function execute(text) {
   if (segments.length > 1) {
     const results = []
     for (const seg of segments) {
-      try { const r = await matchOne(seg); if (r) results.push(r) } catch {}
+      try { const r = await matchOne(seg); if (r) results.push(r) } catch (e) { logger.warn('segmento falló:', seg, '-', e.message) }
     }
     if (!results.length) return null
     const messages = results.map(r => r.message).filter(Boolean).join('. ')
@@ -1370,7 +1346,7 @@ async function matchOne(text) {  // Check custom commands first (user-taught pat
 
   const psCode = typeof p.run === 'function' ? await p.run(m) : p.run
   if (p.capture) {
-    const output = await runPsCapture(psCode)
+    const { stdout: output } = await runPs(psCode)
     return { success: true, message: output || 'Hecho', speak: true, _psCode: psCode, _capture: true, _tts: tts.isAvailable() }
   }
   await runPs(psCode)

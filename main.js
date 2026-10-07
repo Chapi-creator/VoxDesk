@@ -16,7 +16,6 @@ const smartExec = require('./src/main/smart-exec')
 const guard = require('./src/main/guard')
 const memory = require('./src/main/memory')
 const logger = require('./src/main/logger')
-const PROVIDER_LIST = () => Object.entries(llm.PROVIDERS || {}).map(([k, v]) => v.name).join(', ')
 
 const MIME = {
   '.html': 'text/html', '.js': 'application/javascript',
@@ -26,7 +25,6 @@ const MIME = {
 let mainWindow = null
 let server = null
 let wakeMode = true
-let forceQuit = false
 let tray = null
 let wakeRestartTimer = null
 let _macroBuffer = []
@@ -118,8 +116,10 @@ ipcMain.handle('speech:cancel', async () => {
   return true
 })
 
-// Fase 3: los patrones delicados de smart-exec (apagar, borrar, matar…) piden permiso.
-smartExec.setConfirm(async (title, detail) => {
+const systemCmds = require('./src/main/commands/system')
+
+// Fase 3+6: los patrones delicados (smart-exec y system.js) piden permiso.
+async function confirmDestructive(title, detail) {
   if (!mainWindow) return false
   const { response } = await dialog.showMessageBox(mainWindow, {
     type: 'warning',
@@ -130,7 +130,9 @@ smartExec.setConfirm(async (title, detail) => {
     detail: (detail || '').substring(0, 500),
   })
   return response === 0
-})
+}
+smartExec.setConfirm(confirmDestructive)
+systemCmds.setConfirm(confirmDestructive)
 
 async function _handleOne(transcript, _depth = 0) {  if (!transcript) return { success: false, message: 'No te escuché' }
   if (_depth > 5) return { success: false, message: 'Demasiadas macros anidadas' }
@@ -294,7 +296,7 @@ async function _processLlmAnswer(answer) {
       if (output.stdout) msg += '\n\n' + output.stdout
       if (output.stderr) msg += '\n\nError: ' + output.stderr
       return { success: true, message: msg + '\n\n¿Necesitas algo más?', speak: true }
-    } catch (e) {
+    } catch {
       return { success: true, message: (explanation || 'Hecho') + '\n\n¿Necesitas algo más?', speak: true }
     } finally {
       try { fs.unlinkSync(tmpPS) } catch {}
@@ -387,12 +389,10 @@ app.whenReady().then(async () => {
     { label: '🔎 Buscar actualizaciones', click: () => { ipcMain.emit('update:check-request') } },
     { label: 'ℹ️ Acerca de VoxDesk', click: () => { dialog.showMessageBox(mainWindow, { type: 'info', title: 'Acerca de VoxDesk', message: 'VoxDesk ' + app.getVersion(), detail: 'Asistente de voz para Windows.\nEl audio se procesa localmente en tu PC.\n\nPolítica de privacidad: PRIVACY.md incluido en el proyecto.' }) } },
     { type: 'separator' },
-    { label: 'Salir', click: () => { forceQuit = true; app.quit() } },
+    { label: 'Salir', click: () => app.quit() },
   ])
   tray.setContextMenu(ctxMenu)
   tray.on('click', () => { mainWindow?.show(); mainWindow?.focus() })
-
-  mainWindow.on('close', () => { forceQuit = true })
 })
 
 app.on('window-all-closed', () => {

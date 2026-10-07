@@ -2,8 +2,6 @@ const tts = require('../tts')
 const { Notification } = require('electron')
 const memory = require('../memory')
 
-const MS_UNITS = { seg: 1000, min: 60000, hor: 3600000 }
-
 function parseDuration(text) {
   const m = /(\d+)\s*(segundos?|minutos?|horas?)/i.exec(text)
   if (!m) return null

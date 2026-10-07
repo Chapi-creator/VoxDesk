@@ -1,3 +1,4 @@
+﻿/*exported SettingsManager*/
 class SettingsManager {
   constructor() {
     this.open = false

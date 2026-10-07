@@ -1,3 +1,4 @@
+﻿/*exported GuideManager*/
 class GuideManager {
   constructor() {
     this.open = false

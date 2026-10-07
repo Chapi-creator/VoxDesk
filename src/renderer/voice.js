@@ -1,3 +1,4 @@
+﻿/*exported VoiceModule*/
 class VoiceModule {
   constructor() {
     this.isListening = false

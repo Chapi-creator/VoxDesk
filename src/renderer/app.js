@@ -1,3 +1,4 @@
+/*global VoiceModule, UIManager, SettingsManager, GuideManager, OnboardingManager*/
 ;(() => {
   const voice = new VoiceModule()
   const ui = new UIManager()
@@ -34,7 +35,7 @@
         _idleTimer = setTimeout(() => { _idleTimer = null; ui.setIdle() }, 3000)
         return
       }
-    } catch (e) {
+    } catch {
       clearTimeout(_thinkTimer); _thinkTimer = null
       ui.setError('Error interno')
     }

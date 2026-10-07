@@ -201,8 +201,48 @@ test('splitCommands: no parte dentro de comillas', () => {
   assert.equal(parts[0], 'di "pan y queso"')
 })
 
+console.log('\nsystem.js confirm (Fase 6, denegar no ejecuta)')
+const system = require('../src/main/commands/system')
+
+async function run6() {
+system.setConfirm(async () => false)
+const denied = await system.executeSystem('apaga el equipo')
+test('denegar apaga el equipo cancela sin ejecutar', () => {
+  assert.equal(denied.message, 'Cancelado. ¿Necesitas algo más?')
+})
+system.setConfirm(null)
+
+const hora = await system.executeSystem('qué hora es')
+test('qué hora es sigue funcionando', () => {
+  assert.equal(hora.success, true)
+  assert.ok(hora.message.includes('Son las'))
+})
+
+console.log('\nmemory.matchCustom bordes (Fase 6)')
+const os = require('os')
+const memory = require('../src/main/memory')
+memory.setUserDataPath(os.tmpdir())
+memory.addCommand('luz del baño', '-encender')
+test('matchCustom matchea frase con trigger', () => {
+  assert.ok(memory.matchCustom('prende la luz del baño por favor'))
+})
+test('matchCustom no matchea subcadena parcial', () => {
+  assert.equal(memory.matchCustom('enciende las luces'), null)
+})
+memory.removeCommand('luz del baño')
+
+console.log('\nrun-ps compartido (Fase 6)')
+const { runPs } = require('../src/main/run-ps')
+const out = await runPs(`Write-Output hola`)
+test('runPs captura stdout', () => {
+  assert.equal(out.stdout, 'hola')
+  assert.equal(out.err, null)
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
+}
+run6()
 }
 
 run()
