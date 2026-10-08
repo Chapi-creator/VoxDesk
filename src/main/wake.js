@@ -145,7 +145,7 @@ function isRunning() {
   return running
 }
 
-// Fase 16B3: puerta anti-eco — mientras Vox habla solo entra lo intencional
+// B3: puerta anti-eco — mientras Vox habla solo entra lo intencional
 // (palabra de activación recién dicha). El eco sin wake previo se ignora.
 function shouldHear(speaking, lastWakeAt, now) {
   if (!speaking) return true

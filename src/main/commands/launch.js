@@ -189,7 +189,7 @@ function isBrowser(name) {
   return BROWSERS.includes(name.toLowerCase())
 }
 
-// Fase 16B3: escalera whitelist -> ruta -> caché -> where -> start-menu(fuzzy) -> dirs(fuzzy).
+// B3: escalera alias -> ruta -> caché -> where -> start-menu(fuzzy) -> dirs(fuzzy).
 const _appCache = new Map()
 
 function bestFuzzy(candidates, lower) {
@@ -236,8 +236,7 @@ function findApp(name) {
     if (b) found = { target: menu.get(b.name), via: 'startmenu' }
   }
   if (!found) {
-    const searchDirs = [PF, PF86, LOCAL, path.join(LOCAL, 'Programs')];
-    const exes = scanNames(searchDirs, ['.exe'], 3)
+    const exes = scanNames([PF, PF86, LOCAL, path.join(LOCAL, 'Programs')], ['.exe'], 3)
     const b = bestFuzzy([...exes.keys()], lower)
     if (b) found = { target: exes.get(b.name), via: 'dirs' }
   }
