@@ -456,6 +456,7 @@ ipcMain.handle('window:minimize', () => mainWindow?.hide())
 ipcMain.handle('window:close', () => mainWindow?.hide())
 
 let _voxSpeaking = false
+let _lastWakeAt = 0
 let _lastCmdAt = Date.now()
 let _lastSleepState = ''
 let _tickN = 0
@@ -492,7 +493,9 @@ async function handleAndTrack(transcript, depth = 0) {
 }
 
 wake.onWake = (command) => {
-  if (_voxSpeaking) return
+  _lastWakeAt = Date.now()
+  // Fase 16B3 barge-in: decir la palabra sobre Vox hablando lo interrumpe.
+  if (_voxSpeaking) tts.stop()
   if (mainWindow) {
     mainWindow.show(); mainWindow.focus()
     mainWindow.webContents.send('wake:detected', command || '')
@@ -508,7 +511,7 @@ wake.onDown = (message) => {
 }
 
 wake.onText = async (text) => {
-  if (_voxSpeaking) return
+  if (!wake.shouldHear(_voxSpeaking, _lastWakeAt)) return
   if (mainWindow) {
     const result = await handleAndTrack(text)
     result._text = text

@@ -189,6 +189,65 @@ function isBrowser(name) {
   return BROWSERS.includes(name.toLowerCase())
 }
 
+// Fase 16B3: escalera whitelist -> ruta -> caché -> where -> start-menu(fuzzy) -> dirs(fuzzy).
+const _appCache = new Map()
+
+function bestFuzzy(candidates, lower) {
+  const { sim } = require('../understand')
+  let best = null, bestScore = 0
+  for (const c of candidates) {
+    const s = sim(lower, c.toLowerCase())
+    if (s > bestScore) { bestScore = s; best = c }
+  }
+  return bestScore >= 0.75 ? { name: best, score: bestScore } : null
+}
+
+function scanNames(dirs, exts, depth) {
+  const names = new Map()
+  for (const dir of dirs) {
+    if (!fs.existsSync(dir)) continue
+    for (const f of walkDir(dir, depth)) {
+      const ext = path.extname(f).toLowerCase()
+      if (!exts.includes(ext)) continue
+      const base = path.basename(f, path.extname(f)).toLowerCase()
+      if (!names.has(base)) names.set(base, f)
+    }
+  }
+  return names
+}
+
+function findApp(name) {
+  const lower = String(name || '').toLowerCase().trim()
+  if (!lower) return null
+  if (APP_ALIASES[lower]) return { target: APP_ALIASES[lower], via: 'alias' }
+  try {
+    if (path.isAbsolute(lower) && fs.existsSync(lower)) return { target: lower, via: 'path' }
+  } catch {}
+  if (_appCache.has(lower)) return _appCache.get(lower)
+  let found = null
+  try {
+    const out = execFileSync('where', [lower], { timeout: 2000, encoding: 'utf8' })
+    const line = out?.split('\n').map(l => l.trim()).find(l => l && !l.includes('could not'))
+    if (line && fs.existsSync(line)) found = { target: line, via: 'where' }
+  } catch {}
+  if (!found) {
+    const menu = scanNames([START_MENU, START_MENU_ALL], ['.lnk'], 4)
+    const b = bestFuzzy([...menu.keys()], lower)
+    if (b) found = { target: menu.get(b.name), via: 'startmenu' }
+  }
+  if (!found) {
+    const searchDirs = [PF, PF86, LOCAL, path.join(LOCAL, 'Programs')];
+    const exes = scanNames(searchDirs, ['.exe'], 3)
+    const b = bestFuzzy([...exes.keys()], lower)
+    if (b) found = { target: exes.get(b.name), via: 'dirs' }
+  }
+  if (found) {
+    if (_appCache.size > 200) _appCache.clear()
+    _appCache.set(lower, found)
+  }
+  return found
+}
+
 const SITES = {
   youtube: 'https://youtube.com', reddit: 'https://reddit.com',
   twitter: 'https://twitter.com', x: 'https://x.com',
@@ -286,11 +345,15 @@ function execute(text) {
       return
     }
 
-    exec(`"${target}"`, { timeout: 3000, windowsHide: true }, (err) => {
+    // Fase 16B3: escalera antes de disparar a ciegas.
+    const known = findApp(appName)
+    const runTarget = (known && known.via !== 'alias') ? known.target : target
+
+    exec(`"${runTarget}"`, { timeout: 3000, windowsHide: true }, (err) => {
       if (err) {
-        exec(`start "" "${target}"`, { timeout: 3000, shell: true, windowsHide: true }, (e2) => {
+        exec(`start "" "${runTarget}"`, { timeout: 3000, shell: true, windowsHide: true }, (e2) => {
           if (e2) {
-            const found = target.endsWith('.lnk') ? target : searchFileSystem(target)
+            const found = runTarget.endsWith('.lnk') ? runTarget : searchFileSystem(runTarget)
             if (found) {
               const cmd = found.endsWith('.lnk') ? `start "" "${found}"` : `"${found}"`
               exec(cmd, { windowsHide: true }, (e3) => {
@@ -310,4 +373,4 @@ function execute(text) {
   })
 }
 
-module.exports = { execute, resolveAlias, isBrowser, looksLikeUrl }
+module.exports = { execute, resolveAlias, isBrowser, looksLikeUrl, findApp }

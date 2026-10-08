@@ -505,6 +505,37 @@ test('silencio no colisiona', () => {
   assert.notEqual(saludo.pattern.msg, 'Modo silencio')
 })
 
+console.log('\nescalera launch + barge-in (B3)')
+const launch = require('../src/main/commands/launch')
+
+test('findApp: alias instantáneo', () => {
+  assert.deepEqual(launch.findApp('chrome'), { target: 'chrome', via: 'alias' })
+})
+
+test('findApp: vacío null', () => {
+  assert.equal(launch.findApp(''), null)
+  assert.equal(launch.findApp('   '), null)
+})
+
+test('findApp: where halla notepad', () => {
+  const r = launch.findApp('notepad')
+  assert.ok(r && r.target.toLowerCase().includes('notepad'))
+  assert.ok(['where', 'alias'].includes(r.via), r.via)
+})
+
+test('findApp: invento no rompe', () => {
+  const r = launch.findApp('zzzprogramaque_noexiste123')
+  assert.ok(r === null || typeof r.target === 'string')
+})
+
+test('shouldHear: puerta anti-eco', () => {
+  const wake = require('../src/main/wake')
+  assert.equal(wake.shouldHear(false, 0, 1000), true)
+  assert.equal(wake.shouldHear(true, 1000, 2000), true)
+  assert.equal(wake.shouldHear(true, 0, 20000), false)
+  assert.equal(wake.shouldHear(true, 1000, 9000), false)
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

@@ -139,4 +139,11 @@ function isRunning() {
   return running
 }
 
-module.exports = { start, stop, isRunning, listDevices, set onWake(v) { onWake = v }, set onText(v) { onText = v }, set onError(v) { onError = v }, set onLevel(v) { onLevel = v }, set onDown(v) { onDown = v } }
+// Fase 16B3: puerta anti-eco — mientras Vox habla solo entra lo intencional
+// (palabra de activación recién dicha). El eco sin wake previo se ignora.
+function shouldHear(speaking, lastWakeAt, now) {
+  if (!speaking) return true
+  return (now || Date.now()) - (lastWakeAt || 0) < 8000
+}
+
+module.exports = { start, stop, isRunning, listDevices, shouldHear, set onWake(v) { onWake = v }, set onText(v) { onText = v }, set onError(v) { onError = v }, set onLevel(v) { onLevel = v }, set onDown(v) { onDown = v } }
