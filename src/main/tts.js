@@ -10,6 +10,7 @@ function psScript() { return path.join(os.tmpdir(), `_ai_tts_${process.pid}_${++
 let _available = null
 let _child = null
 let _gen = null
+let _speakToken = 0
 
 function escapeSingle(str) { return str.replace(/'/g, "''") }
 
@@ -37,20 +38,27 @@ function getEngine(voicePref) {
 }
 
 function speak(text) {
+  const tok = ++_speakToken
   if (_child) stop()
   if (_gen) { try { _gen.kill() } catch {}; _gen = null }
   const eng = getEngine()
   try { logger.info('tts motor:', eng.engine) } catch {}
-  if (eng.engine === 'piper') return piperSpeak(text, eng)
+  if (eng.engine === 'piper') return piperSpeak(text, eng, tok)
   return sapiSpeak(text)
 }
 
-function piperSpeak(text, eng) {
+function piperSpeak(text, eng, tok) {
   return new Promise((resolve) => {
     const msg = text.replace(/['"]/g, '').substring(0, 2000)
     const wav = path.join(os.tmpdir(), `_ai_vox_${process.pid}_${++_ttsSuffix}.wav`)
     _gen = execFile(eng.exe, ['--model', eng.model, '--output_file', wav], { timeout: 60000, windowsHide: true }, (err) => {
       _gen = null
+      // Si otro speak tomó el turno, callar sin duplicar (ni fallback).
+      if (tok !== _speakToken) {
+        try { fs.unlinkSync(wav) } catch {}
+        resolve()
+        return
+      }
       let wavOk = false
       try { wavOk = fs.existsSync(wav) && fs.statSync(wav).size > 1000 } catch {}
       if (err || !wavOk) {
@@ -117,6 +125,7 @@ function sapiSpeak(text) {
 }
 
 function stop() {
+  _speakToken++
   if (_child) {
     try { _child.kill() } catch {}
     _child = null
