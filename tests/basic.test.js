@@ -550,6 +550,16 @@ test('shouldHear: puerta anti-eco', () => {
   assert.equal(wake.shouldHear(true, 1000, 9000), false)
 })
 
+console.log('\nsilencio (B2 sin noticias)')
+test('silencio no colisiona', () => {
+  const smart = require('../src/main/smart-exec')
+  assert.equal(smart.route('modo silencio')[0].pattern.msg, 'Modo silencio')
+  assert.equal(smart.route('vuelve')[0].pattern.msg, 'Fin del silencio')
+  const saludo = smart.route('buenas noches')[0]
+  assert.ok(/buenas/.test(String(saludo.pattern.match)))
+  assert.notEqual(saludo.pattern.msg, 'Modo silencio')
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

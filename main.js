@@ -482,6 +482,10 @@ let _lastBattery = null
 async function handleAndTrack(transcript, depth = 0) {
   _lastCmdAt = Date.now()
   _lastSleepState = ''
+  // Silencio por voz: cualquier orden lo levanta (salvo las que lo ponen/quitan).
+  if (!/^(modo silencio|no me hables|descansa|c[aá]llate un rato|despierta|ya puedes hablar|modo normal|vuelve)$/i.test(transcript)) {
+    try { memory.del('vox_quiet') } catch {}
+  }
   // Fase 16B2: cualquier orden levanta el silencio (salvo las que lo ponen/quitan).
   if (!/^(modo silencio|no me hables|descansa|c[aá]llate un rato|despierta|ya puedes hablar|modo normal|vuelve)$/i.test(transcript)) {
     try { memory.del('vox_quiet') } catch {}

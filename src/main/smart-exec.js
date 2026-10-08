@@ -138,6 +138,15 @@ const PATTERNS = [
     priority: 10,
     msg: 'Fin del silencio' },
 
+  { match: /^(modo silencio|no me hables|descansa|c[aá]llate un rato)$/i,
+    handler: () => { memory.set('vox_quiet', Date.now()); return 'Descanso. Háblame cuando quieras y vuelvo.' },
+    priority: 10,
+    msg: 'Modo silencio' },
+  { match: /^(despierta|ya puedes hablar|modo normal|vuelve)$/i,
+    handler: () => { memory.del('vox_quiet'); return 'Aquí estoy. ¿Qué hacemos?' },
+    priority: 10,
+    msg: 'Fin del silencio' },
+
   // --- EMAIL / WHATSAPP ---
   { match: /envía\s+(un\s+)?(email|correo|mail)\s+a\s+(.+?)\s+(?:asunto\s+(.+?)\s+)?diciendo\s+(.+)/i,
     handler: async (m) => { const result = await email.send(m[3].trim(), m[4]?.trim() || '', m[5].trim()); return result },
