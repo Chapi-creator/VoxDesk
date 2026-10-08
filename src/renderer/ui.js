@@ -258,9 +258,14 @@ class UIManager {
   }
 
   setTtsAvailable(ok) {
-    if (this.elements.ttsOff) {
-      this.elements.ttsOff.classList.toggle('visible', !ok)
-    }
+    this.setTtsEngine(ok ? 'sapi' : 'none', !!ok)
+  }
+
+  setTtsEngine(engine, ok) {
+    if (!this.elements.ttsOff) return
+    const labels = { piper: 'VOZ: NEURONAL', sapi: 'VOZ: SISTEMA', none: 'SIN VOZ' }
+    this.elements.ttsOff.textContent = ok ? (labels[engine] || 'VOZ') : 'SIN VOZ'
+    this.elements.ttsOff.classList.add('visible')
   }
 
   onToggle = null

@@ -45,6 +45,8 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('vox:life', (_event, data) => callback(data))
   },
   checkTts: () => ipcRenderer.invoke('tts:check'),
+  getTtsEngine: () => ipcRenderer.invoke('tts:engine'),
+  ttsSelfTest: () => ipcRenderer.invoke('tts:selftest'),
   listMicDevices: () => ipcRenderer.invoke('audio:devices'),
   getPreference: (key) => ipcRenderer.invoke('memory:get', key),
   setPreference: (key, value) => ipcRenderer.invoke('memory:set', key, value),

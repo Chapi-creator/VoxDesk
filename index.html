@@ -144,6 +144,11 @@
           <option value="espana">España (neuronal)</option>
           <option value="sistema">Sistema (clásica)</option>
         </select>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <button class="btn-start" id="btn-tts-test" style="flex:1">Probar voz</button>
+          <button class="btn-start" id="btn-tts-diag" style="flex:1">Diagnosticar</button>
+        </div>
+        <div class="status-msg" id="settings-tts-status"></div>
       </div>
       <div class="settings-section">
         <div class="settings-section-title">Correo SMTP</div>
@@ -174,6 +179,7 @@
       <div class="shortcut">CTRL+SHIFT+V</div>
       <div class="bottom-row-right">
         <button class="btn-guide" id="btn-guide" title="Guía de comandos">❓</button>
+        <button class="btn-guide" id="btn-test-voice" title="Probar voz">🔊</button>
         <button class="btn-gear" id="btn-gear" title="Ajustes">⚙</button>
         <div class="wake-indicator" id="wake-indicator">
           <span class="wake-dot"></span> WAKE

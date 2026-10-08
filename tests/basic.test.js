@@ -347,6 +347,20 @@ test('getEngine prefiere piper si hay vendor', () => {
   assert.equal(e.engine, 'piper')
 })
 
+await atest('selfTest silencioso verifica generación', async () => {
+  const fs = require('fs')
+  const path = require('path')
+  const vendor = path.join(__dirname, '..', 'vendor')
+  if (!fs.existsSync(path.join(vendor, 'piper', 'piper.exe'))) {
+    console.log('    (sin vendor, se omite)')
+    return
+  }
+  const r = await tts.selfTest({ silent: true })
+  assert.equal(r.engine, 'piper')
+  assert.equal(r.generated, true)
+  assert.ok(r.size > 1000)
+})
+
 console.log('\nagente (Fase 14a, stubs)')
 const agent = require('../src/main/agent')
 

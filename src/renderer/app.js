@@ -153,6 +153,12 @@
   ui.init()
   settings.init()
   guide.init()
-  window.api.checkTts().then(ok => ui.setTtsAvailable(ok)).catch(() => {})
+  window.api.getTtsEngine().then(({ engine, ok }) => ui.setTtsEngine(engine, ok)).catch(() => {})
+  const voiceBtn = document.getElementById('btn-test-voice')
+  if (voiceBtn) {
+    voiceBtn.addEventListener('click', () => {
+      window.api.speak('Hola, soy Vox. ¿Me escuchas bien?').catch(() => {})
+    })
+  }
   ui.setIdle()
 })()

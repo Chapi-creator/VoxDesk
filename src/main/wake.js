@@ -51,6 +51,12 @@ let _wakeWord = 'asistente'
 function start(wakeWord, opts = {}) {
   if (wakeWord) _wakeWord = wakeWord
   if (running) return true
+  // VOXDESK_NO_WAKE=1: boot de verificación sin abrir el micro.
+  if (process.env.VOXDESK_NO_WAKE === '1') {
+    running = false
+    if (onDown) onDown('Motor de voz desactivado (modo verificación)')
+    return false
+  }
   if (!fs.existsSync(WAKE_EXE)) {
     running = false
     if (onDown) onDown('No se encontró el motor de voz (wake.exe no está junto a la app)')

@@ -3,6 +3,7 @@ const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const config = require('./config')
+const logger = require('./logger')
 
 let _ttsSuffix = 0
 function psScript() { return path.join(os.tmpdir(), `_ai_tts_${process.pid}_${++_ttsSuffix}.ps1`) }
@@ -39,6 +40,7 @@ function speak(text) {
   if (_child) stop()
   if (_gen) { try { _gen.kill() } catch {}; _gen = null }
   const eng = getEngine()
+  try { logger.info('tts motor:', eng.engine) } catch {}
   if (eng.engine === 'piper') return piperSpeak(text, eng)
   return sapiSpeak(text)
 }
@@ -49,7 +51,10 @@ function piperSpeak(text, eng) {
     const wav = path.join(os.tmpdir(), `_ai_vox_${process.pid}_${++_ttsSuffix}.wav`)
     _gen = execFile(eng.exe, ['--model', eng.model, '--output_file', wav], { timeout: 60000, windowsHide: true }, (err) => {
       _gen = null
-      if (err || !fs.existsSync(wav)) {
+      let wavOk = false
+      try { wavOk = fs.existsSync(wav) && fs.statSync(wav).size > 1000 } catch {}
+      if (err || !wavOk) {
+        try { logger.warn('piper falló, voy a SAPI:', err && err.message) } catch {}
         try { fs.unlinkSync(wav) } catch {}
         sapiSpeak(text).then(resolve)
         return
@@ -67,8 +72,7 @@ function piperSpeak(text, eng) {
         resolve()
       }
       child.on('close', (code) => done(code === 0))
-      child.on('error', () => done(false))
-    })
+      child.on('error', () => done(false))    })
     try {
       if (_gen && _gen.stdin) { _gen.stdin.write(msg); _gen.stdin.end() }
     } catch {}
@@ -123,6 +127,51 @@ function stop() {
   }
 }
 
+// Autodiagnóstico por etapas: dice QUÉ falla (generar vs reproducir).
+// silent=true no reproduce (para tests/CI); igual verifica generación.
+async function selfTest({ silent = false } = {}) {
+  const eng = getEngine()
+  if (eng.engine !== 'piper') {
+    return { engine: 'sapi', generated: null, played: null, note: 'Piper no disponible, usa voz del sistema.' }
+  }
+  const wav = path.join(os.tmpdir(), `_ai_vox_test_${process.pid}.wav`)
+  const gen = await new Promise((resolve) => {
+    const child = execFile(eng.exe, ['--model', eng.model, '--output_file', wav], { timeout: 60000, windowsHide: true }, (err) => {
+      let size = 0
+      try { size = fs.statSync(wav).size } catch {}
+      resolve({ err: err && err.message, size })
+    })
+    try {
+      if (child && child.stdin) { child.stdin.write('Prueba de voz de Vox'); child.stdin.end() }
+    } catch {}
+  })
+  if (gen.err || gen.size < 1000) {
+    try { fs.unlinkSync(wav) } catch {}
+    return { engine: 'piper', generated: false, played: false, error: gen.err || 'WAV vacío' }
+  }
+  if (silent) {
+    try { fs.unlinkSync(wav) } catch {}
+    return { engine: 'piper', generated: true, size: gen.size, played: null, note: 'Generación OK (sin reproducir).' }
+  }
+  const played = await new Promise((resolve) => {
+    const ps = `try { $p = New-Object Media.SoundPlayer '${escapeSingle(wav)}'; $p.PlaySync(); exit 0 } catch { exit 1 }`
+    const psFile = psScript()
+    fs.writeFileSync(psFile, '﻿' + ps, 'utf8')
+    const child = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', `"${psFile}"`], { windowsHide: true })
+    child.on('close', (code) => {
+      try { fs.unlinkSync(psFile) } catch {}
+      try { fs.unlinkSync(wav) } catch {}
+      resolve(code === 0)
+    })
+    child.on('error', () => {
+      try { fs.unlinkSync(psFile) } catch {}
+      try { fs.unlinkSync(wav) } catch {}
+      resolve(false)
+    })
+  })
+  return { engine: 'piper', generated: true, size: gen.size, played, error: played ? undefined : 'SoundPlayer no reprodujo' }
+}
+
 function isAvailable() {
   if (getEngine().engine === 'piper') return true
   if (_available !== null) return _available
@@ -142,4 +191,4 @@ function isAvailable() {
   return _available
 }
 
-module.exports = { speak, stop, isAvailable, getEngine }
+module.exports = { speak, stop, isAvailable, getEngine, selfTest }

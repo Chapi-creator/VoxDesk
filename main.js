@@ -267,7 +267,7 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
     const answer = await llm.ask(t)
     if (answer) return await _processLlmAnswer(answer)
   }
-  return { success: false, message: `No entendí: "${t}". Di la palabra de activación de IA al inicio si necesitas ayuda.` }
+  return { success: false, message: `No entendí: "${t}". Di la palabra de activación de IA al inicio si necesitas ayuda.`, speak: true }
 }
 
 function _r(obj) { obj.recording = memory.isRecording(); return obj }
@@ -290,7 +290,7 @@ ipcMain.handle(IPC_CHANNELS.COMMAND_EXEC, async (_event, transcript) => {
 
   return _r(await handleAndTrack(transcript))
   } catch (e) {
-    return _r({ success: false, message: 'Error: ' + e.message })
+    return _r({ success: false, message: 'Error: ' + e.message, speak: true })
   }
 })
 
@@ -435,6 +435,22 @@ async function _processLlmAnswer(answer) {
 }
 
 ipcMain.handle('tts:check', () => tts.isAvailable())
+
+ipcMain.handle('tts:engine', () => {
+  try {
+    return { engine: tts.getEngine().engine, ok: tts.isAvailable() }
+  } catch {
+    return { engine: 'none', ok: false }
+  }
+})
+
+ipcMain.handle('tts:selftest', async () => {
+  try {
+    return await tts.selfTest()
+  } catch (e) {
+    return { engine: '?', generated: false, played: false, error: e.message }
+  }
+})
 
 ipcMain.handle('memory:get', (_e, key) => memory.get(key))
 ipcMain.handle('memory:set', (_e, key, value) => memory.set(key, value))

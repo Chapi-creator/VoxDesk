@@ -20,6 +20,9 @@ class SettingsManager {
     this.elements.username = document.getElementById('settings-username')
     this.elements.proactivity = document.getElementById('settings-proactivity')
     this.elements.voice = document.getElementById('settings-voice')
+    this.elements.ttsTestBtn = document.getElementById('btn-tts-test')
+    this.elements.ttsDiagBtn = document.getElementById('btn-tts-diag')
+    this.elements.ttsStatus = document.getElementById('settings-tts-status')
     this.elements.saveBtn = document.getElementById('btn-settings-save')
     this.elements.aiKeyBtn = document.getElementById('btn-ai-key')
     this.elements.aiLocalBtn = document.getElementById('btn-ai-local')
@@ -71,6 +74,21 @@ class SettingsManager {
     this.elements.gearBtn.addEventListener('click', () => this.toggle())
     this.elements.backBtn.addEventListener('click', () => this.close())
     this.elements.saveBtn.addEventListener('click', () => this.save())
+    if (this.elements.ttsTestBtn) this.elements.ttsTestBtn.addEventListener('click', () => {
+      window.api.speak('Hola, soy Vox. ¿Me escuchas bien?').catch(() => {})
+    })
+    if (this.elements.ttsDiagBtn) this.elements.ttsDiagBtn.addEventListener('click', async () => {
+      this.elements.ttsStatus.textContent = 'Diagnosticando…'
+      try {
+        const r = await window.api.ttsSelfTest()
+        if (r.engine !== 'piper') this.elements.ttsStatus.textContent = 'Motor sistema: prueba con el botón Probar voz.'
+        else if (!r.generated) this.elements.ttsStatus.textContent = 'Falla al GENERAR voz: ' + (r.error || '?')
+        else if (r.played === false) this.elements.ttsStatus.textContent = `Voz generada (${r.size} bytes) pero NO suena: revisa volumen/dispositivo de audio.`
+        else this.elements.ttsStatus.textContent = 'Voz OK: genera y reproduce.'
+      } catch {
+        this.elements.ttsStatus.textContent = 'No se pudo diagnosticar.'
+      }
+    })
     if (this.elements.aiKeyBtn) this.elements.aiKeyBtn.addEventListener('click', () => window.api.openUrl('https://aistudio.google.com/'))
     if (this.elements.aiLocalBtn) this.elements.aiLocalBtn.addEventListener('click', () => {
       this.elements.provider.value = 'local'
