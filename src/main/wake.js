@@ -134,6 +134,10 @@ function start(wakeWord, opts = {}) {
 
 function stop() {
   if (proc) {
+    // Onefile lanza un hijo real: matar solo al padre lo deja huérfano.
+    try {
+      require('child_process').execSync(`taskkill /F /T /PID ${proc.pid}`, { timeout: 5000, windowsHide: true, stdio: 'ignore' })
+    } catch {}
     try { proc.kill() } catch {}
     proc = null
   }

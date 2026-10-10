@@ -84,15 +84,18 @@ const PATTERNS = [
   { match: /cierra\s+(la\s+)?sesi[óo]n|logoff|salir/i,
     run: `shutdown /l`,
     confirm: 'Cerrar sesión',
+    ex: ['cierra sesión', 'cierra la sesión', 'haz logoff'],
     msg: 'Cerrando sesión' },
   { match: /cierra\s+(.+)/i,
     run: (m) => stopProcess(m[1]),
     confirm: (m) => `Cerrar ${m[1]}`,
+    ex: ['cierra chrome', 'cierra esa ventana', 'cierra el bloc de notas'],
     msg: (m) => `Cerrando ${m[1]}` },
-  { match: /cierra\s+todo|mata\s+todo|cerrar\s+todo/i,
+  { match: /cierra\s+todo|mata\s+todo|cerrar\s+todo|cierra todas las ventanas/i,
     run: `Get-Process | Where-Object { $_.MainWindowTitle -ne '' } | Where-Object { $_.ProcessName -notin @('explorer','taskmgr','ApplicationFrameHost') } | Stop-Process -Force`,
     confirm: 'Cerrar todas las ventanas',
     priority: 10,
+    ex: ['cierra todo', 'mata todo', 'cierra todas las ventanas'],
     msg: 'Cerrando todo' },
 
   // --- MOUSE CONTROL ---
@@ -148,9 +151,10 @@ const PATTERNS = [
     msg: 'Fin del silencio' },
 
   // --- EMAIL / WHATSAPP ---
-  { match: /envía\s+(un\s+)?(email|correo|mail)\s+a\s+(.+?)\s+(?:asunto\s+(.+?)\s+)?diciendo\s+(.+)/i,
+  { match: /(?:envía|manda)\s+(un\s+)?(email|correo|mail)\s+a\s+(.+?)\s+(?:asunto\s+(.+?)\s+)?diciendo\s+(.+)/i,
     handler: async (m) => { const result = await email.send(m[3].trim(), m[4]?.trim() || '', m[5].trim()); return result },
     confirm: (m) => `Enviar email a ${m[3]}`,
+    ex: ['envía un email a juan diciendo hola', 'manda un correo a ana diciendo llego tarde'],
     msg: (m) => `Enviando email a ${m[3]}...` },
   { match: /(?:redacta|crea|nuev[oa]|prepara|escribe)\s+(?:un\s+)?(?:correo|email|mail)\b\s*(.*)/i,
     handler: async (m) => {
@@ -421,6 +425,7 @@ const PATTERNS = [
   { match: /hiberna|hibernar/i,
     run: `shutdown /h`,
     confirm: 'Hibernar el equipo',
+    ex: ['hiberna', 'hiberna el equipo', 'pon a hibernar'],
     msg: 'Hibernando' },
   // --- THEME ---
   { match: /tema\s+(oscuro|claro|obscuro)/i,
@@ -431,9 +436,10 @@ const PATTERNS = [
   { match: /crea\s+(una\s+)?carpeta\s+(.+?)(?:\s+(?:en|dentro\s+de)\s+(.+))?$/i,
     run: (m) => createFolder(m[2], m[3]),
     msg: (m) => `Carpeta "${m[2]}" creada` },
-  { match: /borra\s+(el\s+)?(archivo|fichero)\s+(.+)/i,
+  { match: /(?:borra|elimina)\s+(el\s+)?(archivo|fichero)\s+(.+)/i,
     run: (m) => `Remove-Item -Path ${psStr(m[3])} -Force -ErrorAction SilentlyContinue`,
     confirm: (m) => `Borrar el archivo ${m[3]}`,
+    ex: ['borra el archivo notas.txt', 'elimina el fichero viejo'],
     msg: (m) => `Borrado ${m[3]}` },
   { match: /renombra\s+(.+?)\s+(?:a|como)\s+(.+)/i,
     run: (m) => `Rename-Item -Path ${psStr(m[1])} -NewName ${psStr(m[2])} -ErrorAction SilentlyContinue`,
@@ -505,28 +511,33 @@ const PATTERNS = [
     msg: 'Leyendo selección' },
 
   // --- SYSTEM ---
-  { match: /vac(i|í)a\s+(la\s+)?papelera/i,
+  { match: /(vac[ií]a|vaciar|limpia)\s+(la\s+)?papelera/i,
     run: `(New-Object -ComObject Shell.Application).NameSpace(0xa).Items() | ForEach-Object { $_.InvokeVerb('delete') }`,
     confirm: 'Vaciar la papelera',
+    ex: ['vacía la papelera', 'vaciar papelera', 'limpia la papelera'],
     msg: 'Papelera vaciada' },
   { match: /bloquea\s+(el\s+)?(equipo|pc|sesi[óo]n)?/i,
     run: `rundll32.exe user32.dll,LockWorkStation`,
     msg: 'Equipo bloqueado' },
-  { match: /suspende|duerme|sleep/i,
+  { match: /suspende|duerme|sleep|pon\s+a\s+dormir/i,
     run: `rundll32.exe powrprof.dll,SetSuspendState 0,1,0`,
     confirm: 'Suspender el equipo',
+    ex: ['suspende el equipo', 'pon a dormir la compu', 'suspende'],
     msg: 'Durmiendo' },
   { match: /apaga(?!do\b)\s*(el\s+)?(equipo|pc)?(\s+en\s+(\d+))?/i,
     run: (m) => `shutdown /s /t ${(m[4] || 30)} /c "Apagando por solicitud del asistente"`,
     confirm: (m) => `Apagar el equipo en ${m[4] || 30} segundos`,
+    ex: ['apaga el equipo', 'apaga la compu', 'apaga la pc'],
     msg: (m) => `Apagando en ${m[4] || 30} segundos` },
   { match: /reinicia(?!\s+(el\s+)?servicio)\s*(el\s+)?(equipo|pc)?/i,
     run: `shutdown /r /t 20 /c "Reiniciando por solicitud del asistente"`,
     confirm: 'Reiniciar el equipo en 20 segundos',
+    ex: ['reinicia el equipo', 'reinicia la compu', 'reiniciar pc'],
     msg: 'Reiniciando en 20 segundos' },
   { match: /cancela\s+(el\s+)?(apagado|reinicio)/i,
     run: `shutdown /a`,
     priority: 10,
+    ex: ['cancela el apagado', 'cancela el reinicio'],
     msg: 'Apagado cancelado' },
 
   // --- SYSTEM INFO (capture patterns — return PS output) ---
@@ -560,20 +571,23 @@ const PATTERNS = [
     run: `Get-Service | Where Status -eq Running | Select -First 30 Name,DisplayName,Status | Format-Table -AutoSize -Wrap | Out-String -Width 4096`,
     capture: true,
     msg: 'Listando servicios' },
-  { match: /inicia\s+(el\s+)?servicio\s+(.+)/i,
+  { match: /\binicia(?:r)?\s+(el\s+)?servicio\s+(.+)/i,
     run: (m) => `Start-Service '${escapePs(m[2])}' -ErrorAction SilentlyContinue; if ($?) { 'Iniciado' } else { 'Error al iniciar' }`,
     confirm: (m) => `Iniciar el servicio ${m[2]}`,
     priority: 10,
+    ex: ['inicia el servicio audio', 'iniciar servicio spooler'],
     msg: (m) => `Iniciando servicio ${m[2]}` },
-  { match: /(det[eé]n|detiene|para|apaga)\s+(el\s+)?servicio\s+(.+)/i,
+  { match: /(det[eé]n|detiene|detener|para|apaga)\s+(el\s+)?servicio\s+(.+)/i,
     run: (m) => `Stop-Service '${escapePs(m[3])}' -Force -ErrorAction SilentlyContinue; if ($?) { 'Detenido' } else { 'Error al detener' }`,
     confirm: (m) => `Detener el servicio ${m[3]}`,
     priority: 10,
+    ex: ['detén el servicio audio', 'para el servicio spooler'],
     msg: (m) => `Deteniendo servicio ${m[3]}` },
-  { match: /reinicia\s+(el\s+)?servicio\s+(.+)/i,
+  { match: /\breinicia(?:r)?\s+(el\s+)?servicio\s+(.+)/i,
     run: (m) => `Restart-Service '${escapePs(m[2])}' -Force -ErrorAction SilentlyContinue; if ($?) { 'Reiniciado' } else { 'Error al reiniciar' }`,
     confirm: (m) => `Reiniciar el servicio ${m[2]}`,
     priority: 10,
+    ex: ['reinicia el servicio audio', 'reiniciar servicio spooler'],
     msg: (m) => `Reiniciando servicio ${m[2]}` },
 
   // --- MEMORY ---
@@ -671,10 +685,11 @@ public class MK {
     run: `Get-Process | Where-Object { $_.MainWindowTitle -ne '' } | Select-Object Name, Id, @{N='Mem(MB)';E={[math]::Round($_.WS/1MB,1)}}, @{N='CPU(s)';E={[math]::Round($_.TotalProcessorTime.TotalSeconds,1)}} | Sort-Object 'Mem(MB)' -Desc | Format-Table -AutoSize | Out-String -Width 4096`,
     capture: true,
     msg: 'Listando procesos' },
-  { match: /mata\s+(proceso\s+)?(\d+)/i,
-    run: (m) => `Stop-Process -Id ${m[2]} -Force -ErrorAction SilentlyContinue; if ($?) { 'Matado' } else { 'No se pudo matar' }`,
-    confirm: (m) => `Matar el proceso ${m[2]}`,
-    msg: (m) => `Matando proceso ${m[2]}` },
+  { match: /mata\s+(?:el\s+)?(?:proceso\s+)?(\d+)/i,
+    run: (m) => `Stop-Process -Id ${m[1]} -Force -ErrorAction SilentlyContinue; if ($?) { 'Matado' } else { 'No se pudo matar' }`,
+    confirm: (m) => `Matar el proceso ${m[1]}`,
+    ex: ['mata el proceso 1234', 'mata 5678'],
+    msg: (m) => `Matando proceso ${m[1]}` },
   { match: /prioridad\s+(alta|normal|baja|idle|above\s+normal|below\s+normal)\s+(?:a\s+)?(?:proceso\s+)?(\d+)/i,
     run: (m) => { const map = { alta:'High',normal:'Normal',baja:'Idle',idle:'Idle','above normal':'AboveNormal','below normal':'BelowNormal' }; return `(Get-Process -Id ${m[2]} -ErrorAction SilentlyContinue).PriorityClass = [System.Diagnostics.ProcessPriorityClass]::${map[m[1].toLowerCase()] || 'Normal'}` },
     msg: (m) => `Prioridad ${m[1]} para proceso ${m[2]}` },
@@ -694,6 +709,7 @@ public class MK {
   { match: /borra\s+(la\s+)?carpeta\s+(.+)|elimina\s+(la\s+)?carpeta\s+(.+)/i,
     run: (m) => `Remove-Item -Path ${psStr(m[2] || m[4])} -Recurse -Force -ErrorAction SilentlyContinue`,
     confirm: (m) => `Borrar la carpeta ${m[2] || m[4]}`,
+    ex: ['borra la carpeta viejos', 'elimina la carpeta temp'],
     msg: (m) => `Carpeta ${m[2] || m[4]} borrada` },
 
   // --- FILE PROPERTIES / INFO ---
@@ -756,6 +772,7 @@ public class MK {
     capture: true,
     confirm: (m) => `Apagar el equipo en ${m[1] || m[3]} ${(m[2] || m[4] || 'segundos')}`,
     priority: 10,
+    ex: ['apágate en 5 minutos', 'apaga el equipo en 30 segundos'],
     msg: (m) => `Apagando en ${m[1] || m[3]} ${(m[2] || m[4] || 'segundos')}` },
   { match: /cancela\s+(el\s+)?apagado|cancela\s+(el\s+)?reinicio|aborta\s+(el\s+)?shutdown/i,
     run: `shutdown /a; Write-Output 'Apagado cancelado'`,
@@ -855,6 +872,7 @@ public class MK {
     },
     capture: true,
     confirm: (m) => `Ejecutar: ${m[1] || m[2] || m[3]}`,
+    ex: ['ejecuta el comando dir', 'corre el comando echo hola'],
     msg: (m) => `Ejecutando: ${m[1] || m[2] || m[3]}` },
 
   // --- RUN SCRIPT / BUILD ---
@@ -1559,4 +1577,10 @@ function saveHistory(query, result) {
   } catch {}
 }
 
-module.exports = { execute, getHelp, setConfirm, route, pickBest }
+module.exports = { execute, getHelp, setConfirm, route, pickBest, PATTERNS, getPatternExamples }
+
+// Fase 17: ejemplos declarados por patrón (fuente única para fuzzy + self-test).
+function getPatternExamples() {
+  return PATTERNS.filter(p => Array.isArray(p.ex) && p.ex.length)
+    .map(p => ({ pattern: p, canon: p.ex[0], ex: p.ex }))
+}

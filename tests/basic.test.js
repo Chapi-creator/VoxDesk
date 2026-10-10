@@ -560,6 +560,31 @@ test('silencio no colisiona', () => {
   assert.notEqual(saludo.pattern.msg, 'Modo silencio')
 })
 
+console.log('\nejemplos unificados (deuda menor)')
+test('cada ejemplo rutea a su propio patrón', () => {
+  const smart = require('../src/main/smart-exec')
+  const understand = require('../src/main/understand')
+  const XTRA = smart.getPatternExamples().map(e => ({ id: 'pat', canon: e.canon, ex: e.ex }))
+  const bad = []
+  for (const { pattern, ex } of smart.getPatternExamples()) {
+    for (const ejemplo of ex) {
+      const hits = smart.route(ejemplo)
+      const top = hits.length ? hits[0].pattern : null
+      if (top !== pattern) bad.push(`${ejemplo} -> ${top ? top.msg : 'nada'}`)
+    }
+  }
+  assert.deepEqual(bad, [])
+})
+
+test('route con extra usa ejemplos de patrones', () => {
+  const smart = require('../src/main/smart-exec')
+  const understand = require('../src/main/understand')
+  const XTRA = smart.getPatternExamples().map(e => ({ id: 'pat', canon: e.canon, ex: e.ex }))
+  const r = understand.route('apaga la compu', XTRA)
+  assert.ok(r.conf >= understand.HI, r.conf)
+  assert.equal(r.canon, 'apaga el equipo')
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

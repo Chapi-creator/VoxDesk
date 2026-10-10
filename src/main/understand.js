@@ -58,13 +58,21 @@ function sim(a, b) {
 }
 
 // Compara el inicio del texto (tantas palabras como el ejemplo) → {id, conf, args}
-function route(text) {
+// extra: [{id, canon, ex:[...]}] p.ej. desde smart.getPatternExamples().
+function route(text, extra = []) {
   const norm = normalize(text)
   if (!norm) return null
   const words = norm.split(' ')
+  const tables = INTENTS.map(i => ({ id: i.id, canon: i.canon, ex: i.ex }))
+  for (const e of extra) {
+    if (e && Array.isArray(e.ex) && e.ex.length) {
+      tables.push({ id: e.id || 'pat', canon: e.canon || e.ex[0], ex: e.ex })
+    }
+  }
   let best = null
-  for (const intent of INTENTS) {
-    for (const ex of intent.ex) {
+  for (const intent of tables) {
+    for (const rawEx of intent.ex) {
+      const ex = normalize(rawEx)
       const n = ex.split(' ').length
       const head = words.slice(0, n).join(' ')
       const c = sim(head, ex)

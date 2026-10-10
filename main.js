@@ -242,6 +242,7 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
   // Fase 13: fuzzy — entiende aunque la frase varíe ("apaga la compu").
   // Alta confianza ejecuta vía frase canónica; media pregunta; baja sigue al LLM.
   // Fase 16B1: primero la caché aprendida (tus frases exactas ganan al fuzzy).
+  // Deuda menor: los ejemplos viven en los patrones (fuente única).
   if (!_fromFuzzy) {
     const norm = understand.normalize(t)
     const cache = memory.getCache()
@@ -253,7 +254,8 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
     if (bestKey && bestSim >= 0.8 && cache[bestKey].action !== t) {
       return await _handleOne(cache[bestKey].action, _depth + 1, true)
     }
-    const fz = understand.route(t)
+    const XTRA = smartExec.getPatternExamples().map(e => ({ id: 'pat', canon: e.canon, ex: e.ex }))
+    const fz = understand.route(t, XTRA)
     if (fz && fz.conf >= understand.HI) {
       return await _handleOne(fz.canon + (fz.args ? ' ' + fz.args : ''), _depth + 1, true)
     }
