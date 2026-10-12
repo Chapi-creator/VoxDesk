@@ -1,88 +1,87 @@
 # VoxDesk
 
-Asistente de voz para Windows. Controla tu PC con comandos hablados: aplicaciones, archivos, macros, sistema, OCR, clima, traducción e IA.
+Asistente de voz para Windows con presencia estilo JARVIS: controla tu PC con comandos hablados **o escritos**, actúa por su cuenta cuando se lo permites y habla contigo.
 
-El audio se procesa **localmente en tu equipo** (reconocimiento Vosk, sin internet, sin nube).
+El audio se procesa **localmente en tu equipo** (Vosk + Silero, sin internet, sin nube).
 
 ## Descargar
 
-- **Instalador:** descarga la última versión desde [Releases](https://github.com/Chapi-creator/VoxDesk/releases).
-- La app instalada se actualiza sola al abrir (electron-updater).
+- **Instalador:** última versión en [Releases](https://github.com/Chapi-creator/VoxDesk/releases). Un solo `.exe`: siguiente-siguiente, sin Python, sin cuentas.
+- La app avisa sola de actualizaciones y tú eliges cuándo reiniciar.
+- Si SmartScreen avisa (app sin firma comercial): Más información > Ejecutar de todas formas.
 
 ## Requisitos
 
 - Windows 10/11 (64-bit)
-- Micrófono
-- Sin Python, sin dependencias externas: todo viene incluido en la app.
+- Micrófono (para voz; también acepta órdenes escritas en su consola)
+- Todo incluido en el instalador: motor de voz, VAD neuronal y voces neuronales MX/ES.
 
 ## Qué hace
 
-Dile la palabra de activación (por defecto **"asistente"**) y luego el comando:
+Dile la palabra de activación (por defecto **"asistente"**) o escribe en la consola:
 
-### Aplicaciones y web
-- `abre chrome` / `abre youtube` / `abre gmail` — abre apps o sitios web.
-- `abre chrome y pon youtube` — abre YouTube en Chrome.
+### Control del PC
+- `abre chrome` / `abre youtube` / `abre gmail` — apps o sitios.
+- `abre chrome y pon youtube` — compuestos con "y / luego / después".
+- `sube/baja el volumen|brillo`, `captura la pantalla`, `bloquea`, `cierra sesión`, `apaga/reinicia el equipo`.
+- `cierra X`, `cierra todo`, `mata el proceso N`, servicios, papelera, archivos.
+- `ejecuta el comando ...` / `corre npm ...` — **siempre piden permiso antes**.
 
-### Sistema
-- `sube el volumen` / `baja el volumen`
-- `sube el brillo` / `baja el brillo`
-- `captura la pantalla` / `captura parte de la pantalla`
-- `cambia el fondo de escritorio` (con ruta de imagen)
-- `bloquea la pantalla`, `cierra sesión`, `apaga el equipo`, `reinicia`
+### Entiende aunque varíes
+- Fuzzy por intención: `apaga la compu` = `apaga el equipo`. Aprende tus frases y las reutiliza (👍/👎 en el historial enseñan).
+- Recuerda lo último: `analiza eso`, `repítelo`, `¿y eso qué significa?`.
 
-### Archivos y búsqueda
-- `busca notas de ...` — busca en tus archivos.
-- `crea una nota` — crea notas.
+### Autonomía (`encárgate de ...`)
+- Arma un plan con IA, te lo muestra, lo ejecuta paso a paso y replanifica si algo falla. Requiere IA configurada.
 
-### Macros
-- Graba y ejecuta secuencias de comandos hablados: `guarda macro <nombre>`, `ejecuta la macro <nombre>`.
+### Vida propia (configurable)
+- Buenos días, rachas, batería baja, pausas, dormir por inactividad, modo silencio por voz (`descansa` / `despierta`).
+- Nivel en Ajustes: total / solo visual / silencio. Sin voz de 22 a 8.
 
 ### Utilidades
-- `qué hora es` / `qué fecha es`
-- `clima en <ciudad>` / `dime el clima`
-- `traduce <frase> a <idioma>`
-- `mi ip` / `velocidad de internet` / `crea un código qr para <texto>`
-- `temporizador de <n> segundos/minutos/horas`
+- `qué hora|fecha es`, `clima en <ciudad>`, `traduce <frase>`, `temporizador|alarma`, `lee esto` (lee tu selección), `cuéntame un chiste|un dato`, `sistemas` (reporte con puntaje).
+- Notas, macros (`graba macro` / `ejecuta macro`), email/WhatsApp por voz.
 
-### IA (opcional)
-- Configura tu propia API key (Gemini, OpenAI, Groq, DeepSeek, Anthropic, etc. u Ollama local) y pídele cosas: `ia, <tu pregunta>`.
-- Sin API key, la app funciona sin IA.
+### IA (opcional, online primero)
+- 12 proveedores (Gemini, OpenAI, Groq, DeepSeek, Anthropic, Ollama, LM Studio…) + URL custom. Key vacía vale para servidores caseros en tu red.
+- Sin IA: comandos, fuzzy, macros y utilidades funcionan igual.
+
+## Voz
+
+- Transcripción Vosk offline + VAD neuronal Silero + voces neuronales Piper (mexicana default, española) con fallback a voz del sistema.
+- Ajustes muestra el motor activo (`VOZ: NEURONAL/SISTEMA/SIN VOZ`) y botones **Probar voz** y **Diagnosticar** (dice si falla al generar o al reproducir).
+- Si no suena: revisa dispositivo de salida (cuidado con drivers virtuales tipo FxSound), volumen por app y que el micrófono tenga permiso.
 
 ## Configuración
 
-- Palabra de activación, palabras de IA, proveedor/modelo de IA, SMTP para correos.
-- Todo se guarda cifrado en tu equipo (`%APPDATA%\ai-desktop-assistant`).
+Palabra de activación, micrófono, pausa de fin, tu nombre, iniciativa, voz y velocidad, IA, SMTP. Claves cifradas en `%APPDATA%\ai-desktop-assistant`.
 
 ## Privacidad
 
 Lee la [Política de Privacidad](PRIVACY.md). Resumen:
 
-- El audio se procesa **localmente** (Vosk). **No se sube a ningún servidor.**
-- No hay telemetría, no hay analytics, no se venden datos.
-- Las únicas llamadas de red ocurren **cuando tú las pides** (traducir, clima, preguntar a tu IA con tu API key).
-- El reconocimiento de voz funciona **sin conexión a internet**.
+- Audio y transcripción 100% locales. Sin telemetría ni analytics.
+- Red solo cuando tú la pides (clima, noticias, IA con tu key, updates).
+- La IA con tu key envía tus preguntas a ese proveedor (opcional).
 
-## Riesgos y advertencias
+## Riesgos
 
-- La app puede **ejecutar comandos de PowerShell** dictados por voz (`ejecuta comando ...`) y código PowerShell generado por la IA. Esto es poderoso y **potencialmente peligroso**: un comando mal redactado (por ti o por la IA) puede modificar tu sistema.
-- Hay un filtro de seguridad que bloquea operaciones conocidas peligrosas (apagados, formato de discos, borrados recursivos, etc.), pero no es una defensa completa.
-- Cuando la IA genera código PowerShell, la app te pide confirmación si detecta una operación peligrosa.
-- **Usa la ejecución de comandos solo si entiendes qué hace.**
+- Puede ejecutar PowerShell dictado o generado por IA: **todo lo delicado pide permiso** (apagados, borrados, servicios, comandos, email). El filtro de lista negra no es defensa completa: revisa antes de aceptar.
+- Sin firma comercial: SmartScreen avisará hasta firmarlo.
 
 ## Desarrollo
 
-- `npm install` y `npm run setup` (descarga el modelo de voz, ~40 MB, solo una vez).
-- `npm start` para probar. `npm test` corre las pruebas. `npm run build` genera el instalador.
-- Voz: Vosk (transcripción) + Silero VAD neuronal (~2 MB, MIT, commiteado en `src/main/silero_vad.onnx`; +~15 MB al `wake.exe`). Sin el modelo, usa detector por energía.
+- `npm install` y `npm run setup` (modelo Vosk ~40 MB + Piper/voces ~150 MB, una vez).
+- `npm start` · `npm test` (unitarias + renderer) · `npm run lint` · CI en GitHub.
 - `python src/main/wake.py --self-test` verifica el VAD sin micro.
+- `VOXDESK_NO_WAKE=1` arranca sin abrir el micro (verificación).
 
 ## Publicar una release
 
-1. Sube la versión en `package.json` y pushea a `main`.
-2. `npm run build` y verifica el instalador `VoxDesk-<versión>-setup.exe`.
-3. Crea la release en GitHub con notas en español (qué cambió, cómo actualizar).
-4. Sube el mismo `.exe` a itch.io como espejo.
-5. La app instalada avisa sola de la actualización (el usuario elige cuándo reiniciar).
+1. Versión en `package.json`, push a `main` (CI debe estar verde).
+2. `npm run build` → verifica `dist/VoxDesk-<versión>-setup.exe`.
+3. Release en GitHub con el `.exe` **y** `dist/latest.yml` (sin el yml el auto-update falla con 404).
+4. Espejo en itch.io.
 
 ## Licencia
 
