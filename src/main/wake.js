@@ -156,4 +156,8 @@ function shouldHear(speaking, lastWakeAt, now) {
   return (now || Date.now()) - (lastWakeAt || 0) < 8000
 }
 
-module.exports = { start, stop, isRunning, listDevices, shouldHear, set onWake(v) { onWake = v }, set onText(v) { onText = v }, set onError(v) { onError = v }, set onLevel(v) { onLevel = v }, set onDown(v) { onDown = v } }
+function enginePath() {
+  return fs.existsSync(WAKE_EXE) ? WAKE_EXE : null
+}
+
+module.exports = { start, stop, isRunning, listDevices, shouldHear, enginePath, set onWake(v) { onWake = v }, set onText(v) { onText = v }, set onError(v) { onError = v }, set onLevel(v) { onLevel = v }, set onDown(v) { onDown = v } }

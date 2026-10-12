@@ -648,6 +648,22 @@ test('modo trabajo rutea a macro', () => {
   assert.ok(Array.isArray(r._macro) && r._macro.length >= 2)
 })
 
+console.log('\nv1.0 (historial, timers, health)')
+const timers = require('../src/main/commands/timer')
+
+test('listTimers ordena y expone', () => {
+  memory.saveReminder('zz prueba', Date.now() + 60000, 0)
+  const all = timers.listTimers()
+  assert.ok(all.some(r => r.message === 'zz prueba'))
+  memory.listReminders().filter(r => r.message === 'zz prueba').forEach(r => memory.removeReminder(r.id))
+})
+
+test('wake.enginePath existe o null sin romper', () => {
+  const wake = require('../src/main/wake')
+  const p = wake.enginePath()
+  assert.ok(p === null || typeof p === 'string')
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

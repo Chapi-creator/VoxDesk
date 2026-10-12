@@ -27,6 +27,8 @@ class UIManager {
     this.elements.ttsOff = document.getElementById('tts-off')
     this.elements.btnStop = document.getElementById('btn-stop')
     this.elements.cmdInput = document.getElementById('cmd-input')
+    this.elements.histSearch = document.getElementById('history-search')
+    this.elements.timers = document.getElementById('timers')
 
     if (this.elements.btn) {
       this.elements.btn.addEventListener('click', () => {
@@ -37,6 +39,12 @@ class UIManager {
     if (this.elements.btnStop) {
       this.elements.btnStop.addEventListener('click', () => {
         if (this.onStop) this.onStop()
+      })
+    }
+
+    if (this.elements.histSearch) {
+      this.elements.histSearch.addEventListener('input', () => {
+        this.filterHistory(this.elements.histSearch.value)
       })
     }
 
@@ -242,6 +250,36 @@ class UIManager {
     if (this.elements.response) {
       this.elements.response.textContent = text
     }
+  }
+
+  filterHistory(q) {
+    if (!this.elements.history) return
+    const needle = String(q || '').toLowerCase().trim()
+    for (const e of this.elements.history.children) {
+      const text = (e.textContent || '').toLowerCase()
+      e.style.display = !needle || text.includes(needle) ? '' : 'none'
+    }
+  }
+
+  refreshTimers(list) {
+    if (!this.elements.timers) return
+    const el = this.elements.timers
+    el.innerHTML = ''
+    const now = Date.now()
+    for (const r of (list || []).slice(0, 3)) {
+      const s = Math.max(0, Math.round(((r.timestamp || 0) - now) / 1000))
+      const mm = String(Math.floor(s / 60)).padStart(2, '0')
+      const ss = String(s % 60).padStart(2, '0')
+      const div = document.createElement('div')
+      div.textContent = `⏳ ${r.message || ''} — ${mm}:${ss}${r.repeatMs ? ' ↻' : ''}`
+      el.appendChild(div)
+    }
+  }
+
+  showHealth(checks) {
+    const bad = (checks || []).filter(c => !c.ok)
+    if (!bad.length) return
+    this.showResponse('Aviso: ' + bad.map(c => c.label).join(' · '))
   }
 
   _setStatus(text, className) {

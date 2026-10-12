@@ -29,10 +29,11 @@ function ctxProxy() {
 }
 
 function fakeEl(id) {
-  return {
-    id, textContent: '', innerHTML: '', value: '',
+  const el = {
+    id, innerHTML: '', value: '',
     style: {}, children: [], listeners: {},
     width: 300, height: 150, options: [],
+    _text: '',
     classList: fakeClassList(),
     addEventListener(ev, fn) { (this.listeners[ev] = this.listeners[ev] || []).push(fn) },
     appendChild(c) { this.children.push(c); return c },
@@ -41,6 +42,11 @@ function fakeEl(id) {
     getContext: () => ctxProxy(),
     querySelectorAll: () => [],
   }
+  Object.defineProperty(el, 'textContent', {
+    get() { return el._text + el.children.map(c => (c && c.textContent) || '').join('') },
+    set(v) { el._text = String(v ?? '') },
+  })
+  return el
 }
 
 function fakeDocument() {
@@ -237,6 +243,27 @@ test('UIManager: historial con feedback', () => {
   assert.deepEqual(fb, ['hola', true])
   ui.pushHistory('[sistema]', 'aviso')
   assert.equal(doc.getElementById('history').children[1].children.length, 2)
+})
+
+test('UIManager: buscar historial + timers + health', () => {
+  const doc = fakeDocument()
+  const UIManager = loadClass('src/renderer/ui.js', 'UIManager', { document: doc, requestAnimationFrame: () => 0 })
+  const ui = new UIManager()
+  ui.init()
+  ui.pushHistory('abre chrome', 'ok')
+  ui.pushHistory('qué hora es', 'son las 1')
+  ui.filterHistory('chrome')
+  const kids = doc.getElementById('history').children
+  assert.equal(kids[0].style.display, '')
+  assert.equal(kids[1].style.display, 'none')
+  ui.filterHistory('')
+  assert.equal(kids[1].style.display, '')
+  ui.refreshTimers([{ message: 'agua', timestamp: Date.now() + 65000, repeatMs: 3600000 }])
+  assert.equal(doc.getElementById('timers').children.length, 1)
+  assert.ok(doc.getElementById('timers').children[0].textContent.includes('01:05'))
+  ui.showHealth([{ id: 'tts', ok: false, label: 'sin voz' }])
+  assert.ok(doc.getElementById('response').textContent.includes('sin voz'))
+  ui.showHealth([{ id: 'tts', ok: true, label: 'x' }])
 })
 
 async function run() {

@@ -106,4 +106,10 @@ function loadPending() {
   }
 }
 
-module.exports = { execute, loadPending, parseDuration, parseRepeat, fmtRepeat }
+module.exports = { execute, loadPending, parseDuration, parseRepeat, fmtRepeat, listTimers }
+
+function listTimers() {
+  return memory.listReminders()
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .map(r => ({ message: r.message, timestamp: r.timestamp, repeatMs: r.repeatMs || 0 }))
+}

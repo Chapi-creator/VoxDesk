@@ -230,6 +230,14 @@
     .hist-entry .h-q { color: rgba(79,195,247,0.5); }
     .hist-entry .h-q::before { content: '› '; }
     .hist-entry .h-a { color: rgba(255,255,255,0.45); }
+    .hist-search-row { padding: 0 16px 4px; }
+    .hist-search {
+      width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 6px; padding: 4px 8px; color: #e8e8ed; font-size: 10px; outline: none; font-family: inherit;
+    }
+    .hist-search::placeholder { color: rgba(255,255,255,0.2); }
+    .timers { display: flex; flex-direction: column; gap: 2px; padding: 2px 16px; font-family: monospace; font-size: 10px; color: #ffb74d; }
+    .timers:empty { display: none; }
     .h-fb { display: inline-flex; gap: 4px; margin-left: 8px; }
     .h-fb-btn {
       background: none; border: none; cursor: pointer; font-size: 10px;

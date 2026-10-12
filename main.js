@@ -269,7 +269,7 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
     const answer = await llm.ask(t)
     if (answer) return await _processLlmAnswer(answer)
   }
-  return { success: false, message: `No entendí: "${t}". Di la palabra de activación de IA al inicio si necesitas ayuda.`, speak: true }
+  return { success: false, message: `No entendí: "${t}". Prueba con algo simple como "qué hora es", o abre la guía ❓ para ver todo lo que sé hacer.`, speak: true }
 }
 
 function _r(obj) { obj.recording = memory.isRecording(); return obj }
@@ -456,6 +456,21 @@ ipcMain.handle('tts:selftest', async () => {
 
 ipcMain.handle('memory:get', (_e, key) => memory.get(key))
 ipcMain.handle('memory:set', (_e, key, value) => memory.set(key, value))
+
+ipcMain.handle('timers:list', () => {
+  try { return require('./src/main/commands/timer').listTimers() } catch { return [] }
+})
+
+ipcMain.handle('app:health', () => {
+  const checks = []
+  try {
+    checks.push({ id: 'wake', ok: !!wake.enginePath(), label: 'motor de voz no encontrado (reinstala la app)' })
+  } catch { checks.push({ id: 'wake', ok: false, label: 'motor de voz no encontrado (reinstala la app)' }) }
+  try {
+    checks.push({ id: 'tts', ok: tts.isAvailable(), label: 'sin voz (revisa Ajustes > Voz y el Diagnosticar)' })
+  } catch { checks.push({ id: 'tts', ok: false, label: 'sin voz (revisa Ajustes > Voz y el Diagnosticar)' }) }
+  return checks
+})
 
 // Fase 16B1: 👍 confirma el mapeo aprendido, 👎 lo borra.
 ipcMain.handle('cache:feedback', (_e, transcript, good) => {

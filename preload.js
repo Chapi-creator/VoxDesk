@@ -50,5 +50,7 @@ contextBridge.exposeInMainWorld('api', {
   listMicDevices: () => ipcRenderer.invoke('audio:devices'),
   getPreference: (key) => ipcRenderer.invoke('memory:get', key),
   setPreference: (key, value) => ipcRenderer.invoke('memory:set', key, value),
+  timersList: () => ipcRenderer.invoke('timers:list'),
+  appHealth: () => ipcRenderer.invoke('app:health'),
   cacheFeedback: (transcript, good) => ipcRenderer.invoke('cache:feedback', transcript, good),
 })

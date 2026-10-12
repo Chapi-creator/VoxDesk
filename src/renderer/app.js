@@ -154,6 +154,12 @@
   settings.init()
   guide.init()
   window.api.getTtsEngine().then(({ engine, ok }) => ui.setTtsEngine(engine, ok)).catch(() => {})
+  window.api.appHealth().then((checks) => ui.showHealth(checks)).catch(() => {})
+  const refreshTimers = () => {
+    window.api.timersList().then((list) => ui.refreshTimers(list)).catch(() => {})
+  }
+  refreshTimers()
+  setInterval(refreshTimers, 5000)
   const voiceBtn = document.getElementById('btn-test-voice')
   if (voiceBtn) {
     voiceBtn.addEventListener('click', () => {
