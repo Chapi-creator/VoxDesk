@@ -19,11 +19,18 @@ if (!(Test-Path (Join-Path $PiperDir 'piper.exe'))) {
 
 $Base = 'https://huggingface.co/rhasspy/piper-voices/resolve/main'
 $Files = @(
-  @('es/es_MX/ald/medium/es_MX-ald-medium.onnx', 'es_MX-ald-medium.onnx'),
-  @('es/es_MX/ald/medium/es_MX-ald-medium.onnx.json', 'es_MX-ald-medium.onnx.json'),
-  @('es/es_ES/davefx/medium/es_ES-davefx-medium.onnx', 'es_ES-davefx-medium.onnx'),
-  @('es/es_ES/davefx/medium/es_ES-davefx-medium.onnx.json', 'es_ES-davefx-medium.onnx.json')
+  @('es/es_MX/claude/high/es_MX-claude-high.onnx', 'es_MX-claude-high.onnx'),
+  @('es/es_MX/claude/high/es_MX-claude-high.onnx.json', 'es_MX-claude-high.onnx.json'),
+  @('es/es_ES/sharvard/medium/es_ES-sharvard-medium.onnx', 'es_ES-sharvard-medium.onnx'),
+  @('es/es_ES/sharvard/medium/es_ES-sharvard-medium.onnx.json', 'es_ES-sharvard-medium.onnx.json'),
+  @('es/es_AR/daniela/high/es_AR-daniela-high.onnx', 'es_AR-daniela-high.onnx'),
+  @('es/es_AR/daniela/high/es_AR-daniela-high.onnx.json', 'es_AR-daniela-high.onnx.json')
 )
+# Voces viejas fuera del pack (2, 3 y 4 son las elegidas).
+foreach ($old in @('es_MX-ald-medium.onnx', 'es_MX-ald-medium.onnx.json', 'es_ES-davefx-medium.onnx', 'es_ES-davefx-medium.onnx.json')) {
+  $p = Join-Path $VoicesDir $old
+  if (Test-Path $p) { Remove-Item $p -Force; Write-Host "Fuera: $old" }
+}
 foreach ($f in $Files) {
   $Dest = Join-Path $VoicesDir $f[1]
   if (!(Test-Path $Dest)) {

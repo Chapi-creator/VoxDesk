@@ -454,6 +454,27 @@ ipcMain.handle('tts:selftest', async () => {
   }
 })
 
+ipcMain.handle('voices:list', () => {
+  try { return require('./src/main/voices').listCustom() } catch { return [] }
+})
+
+ipcMain.handle('voices:add', async (_event, name, url) => {
+  const voices = require('./src/main/voices')
+  const path = require('path')
+  let base
+  try {
+    const app = require('electron').app
+    base = app.isPackaged ? path.join(process.resourcesPath, 'voices') : path.join(__dirname, 'vendor', 'voices')
+  } catch {
+    base = path.join(__dirname, 'vendor', 'voices')
+  }
+  return await voices.addCustomVoice(name, url, base)
+})
+
+ipcMain.handle('voices:remove', (_event, file) => {
+  try { return require('./src/main/voices').removeCustomVoice(file) } catch { return [] }
+})
+
 ipcMain.handle('memory:get', (_e, key) => memory.get(key))
 ipcMain.handle('memory:set', (_e, key, value) => memory.set(key, value))
 

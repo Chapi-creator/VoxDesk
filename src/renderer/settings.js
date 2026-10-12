@@ -20,6 +20,10 @@ class SettingsManager {
     this.elements.username = document.getElementById('settings-username')
     this.elements.proactivity = document.getElementById('settings-proactivity')
     this.elements.voice = document.getElementById('settings-voice')
+    this.elements.customVoices = document.getElementById('settings-custom-voices')
+    this.elements.voiceUrl = document.getElementById('settings-voice-url')
+    this.elements.voiceAddBtn = document.getElementById('btn-voice-add')
+    this.elements.voiceStatus = document.getElementById('settings-voice-status')
     this.elements.voiceRate = document.getElementById('settings-voicerate')
     this.elements.voiceRateVal = document.getElementById('settings-voicerate-val')
     this.elements.ttsTestBtn = document.getElementById('btn-tts-test')
@@ -106,6 +110,19 @@ class SettingsManager {
       this.elements.ollamaStatus.textContent = 'Descargando instalador… complétalo y vuelve.'
       await window.api.ollamaInstall()
     })
+    if (this.elements.voiceAddBtn) this.elements.voiceAddBtn.addEventListener('click', async () => {
+      const url = (this.elements.voiceUrl.value || '').trim()
+      if (!url) { this.elements.voiceStatus.textContent = 'Pega primero el link .onnx.'; return }
+      this.elements.voiceStatus.textContent = 'Descargando voz… tarda unos minutos.'
+      try {
+        const v = await window.api.voicesAdd('', url)
+        this.elements.voiceUrl.value = ''
+        this.elements.voiceStatus.textContent = `Voz "${v.name}" lista.`
+        await this._refreshCustomVoices('custom:' + v.file)
+      } catch (e) {
+        this.elements.voiceStatus.textContent = 'No se pudo: ' + (e.message || 'revisa el link')
+      }
+    })
     if (this.elements.ollamaPullBtn) this.elements.ollamaPullBtn.addEventListener('click', async () => {
       const model = this.elements.model.value || 'qwen2.5:1.5b'
       this.elements.ollamaStatus.textContent = `Bajando ${model}… tarda varios minutos.`
@@ -158,8 +175,46 @@ class SettingsManager {
     this.elements.saveBtn.classList.remove('saved')
     this._toggleUrlField()
     this._refreshOllama()
+    await this._refreshCustomVoices()
     const p = this.elements.provider.value
     if (p === 'local' || this.elements.apiKey.value.trim()) await this._fetchModels()
+  }
+
+  async _refreshCustomVoices(savedVoice) {
+    const box = this.elements.customVoices
+    const sel = this.elements.voice
+    if (!box || !sel) return
+    box.querySelectorAll('[data-custom]').forEach(el => el.remove())
+    let list = []
+    try { list = await window.api.voicesList() } catch {}
+    for (const v of list) {
+      const val = 'custom:' + v.file
+      if (![...sel.options].some(o => o.value === val)) {
+        const opt = document.createElement('option')
+        opt.value = val
+        opt.textContent = v.name + ' (mía)'
+        opt.setAttribute('data-custom', '1')
+        sel.appendChild(opt)
+      }
+      const row = document.createElement('div')
+      row.setAttribute('data-custom', '1')
+      row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;font-size:10px;color:rgba(255,255,255,0.4);padding:2px 0'
+      const label = document.createElement('span')
+      label.textContent = v.name
+      const del = document.createElement('button')
+      del.textContent = 'quitar'
+      del.className = 'btn-start'
+      del.style.cssText = 'padding:2px 8px;font-size:10px'
+      del.addEventListener('click', async () => {
+        try { await window.api.voicesRemove(v.file) } catch {}
+        if (sel.value === val) sel.value = 'mexicana'
+        this._refreshCustomVoices(sel.value)
+      })
+      row.appendChild(label)
+      row.appendChild(del)
+      box.appendChild(row)
+    }
+    if (savedVoice && [...sel.options].some(o => o.value === savedVoice)) sel.value = savedVoice
   }
 
   async _refreshOllama() {

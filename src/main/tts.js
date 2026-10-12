@@ -15,7 +15,7 @@ let _speakToken = 0
 function escapeSingle(str) { return str.replace(/'/g, "''") }
 
 // Voces Piper empaquetadas (vendor/piper + vendor/voices). MIT.
-const VOICE_FILES = { mexicana: 'es_MX-ald-medium.onnx', espana: 'es_ES-davefx-medium.onnx' }
+const VOICE_FILES = { mexicana: 'es_MX-claude-high.onnx', espana: 'es_ES-sharvard-medium.onnx', argentina: 'es_AR-daniela-high.onnx' }
 
 function vendorBase() {
   try {
@@ -35,13 +35,19 @@ function voiceRate() {
 }
 
 // Qué motor usar. Solo lee config + disco → testeable.
-function getEngine(voicePref) {
+// baseOverride solo para tests. customs viven en voices/custom/.
+function getEngine(voicePref, baseOverride) {
   const pref = voicePref || config.load().voice || 'mexicana'
+  if (pref === 'edge') return { engine: 'edge', voice: config.load().edgeVoice || 'es-MX-DaliaNeural' }
   if (pref !== 'sistema') {
-    const base = vendorBase()
-    const exe = path.join(base, 'piper', 'piper.exe')
-    const model = path.join(base, 'voices', VOICE_FILES[pref] || VOICE_FILES.mexicana)
-    if (fs.existsSync(exe) && fs.existsSync(model)) return { engine: 'piper', exe, model }
+    const base = baseOverride || vendorBase()
+    let rel = VOICE_FILES[pref]
+    if (!rel && pref.startsWith('custom:')) rel = path.join('custom', pref.slice(7))
+    if (rel) {
+      const exe = path.join(base, 'piper', 'piper.exe')
+      const model = path.join(base, 'voices', rel)
+      if (fs.existsSync(exe) && fs.existsSync(model)) return { engine: 'piper', exe, model }
+    }
   }
   return { engine: 'sapi' }
 }
@@ -53,7 +59,63 @@ function speak(text) {
   const eng = getEngine()
   try { logger.info('tts motor:', eng.engine) } catch {}
   if (eng.engine === 'piper') return piperSpeak(text, eng, tok)
+  if (eng.engine === 'edge') return edgeSpeak(text, eng, tok)
   return sapiSpeak(text)
+}
+
+// Edge-TTS online (experimental: servicio no oficial, puede no responder).
+// Timeout duro 15s + fallback SAPI. Nada se cuelga.
+function edgeSpeak(text, eng, tok) {
+  return new Promise((resolve) => {
+    let done = false
+    const finish = (ok) => {
+      if (done) return
+      done = true
+      if (tok !== _speakToken) { resolve(); return }
+      resolve(ok)
+    }
+    const timer = setTimeout(() => {
+      try { logger.warn('edge timeout, voy a SAPI') } catch {}
+      sapiSpeak(text).then(() => finish(true))
+    }, 15000)
+    ;(async () => {
+      try {
+        const { Communicate } = require('@travisvn/edge-tts')
+        const communicate = new Communicate(text.substring(0, 1000), { voice: eng.voice })
+        const bufs = []
+        for await (const chunk of communicate.stream()) {
+          if (tok !== _speakToken) { clearTimeout(timer); finish(true); return }
+          if (chunk.type === 'audio' && chunk.data) bufs.push(Buffer.from(chunk.data))
+        }
+        const buf = Buffer.concat(bufs)
+        if (!buf.length) throw new Error('sin audio')
+        const mp3 = path.join(os.tmpdir(), `_ai_edge_${process.pid}_${++_ttsSuffix}.mp3`)
+        fs.writeFileSync(mp3, buf)
+        clearTimeout(timer)
+        const ps = `try { $w = New-Object -ComObject WMPlayer.OCX; $w.URL = '${escapeSingle(mp3)}'; $w.controls.play(); $t = 0; while ($w.playState -ne 1 -and $t -lt 120) { Start-Sleep -Milliseconds 300; $t++ } } catch { exit 1 }`
+        const psFile = psScript()
+        fs.writeFileSync(psFile, '﻿' + ps, 'utf8')
+        const child = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', `"${psFile}"`], { windowsHide: true })
+        _child = child
+        child.on('close', () => {
+          if (_child === child) _child = null
+          try { fs.unlinkSync(psFile) } catch {}
+          try { fs.unlinkSync(mp3) } catch {}
+          finish(true)
+        })
+        child.on('error', () => {
+          if (_child === child) _child = null
+          try { fs.unlinkSync(psFile) } catch {}
+          try { fs.unlinkSync(mp3) } catch {}
+          sapiSpeak(text).then(() => finish(true))
+        })
+      } catch (e) {
+        clearTimeout(timer)
+        try { logger.warn('edge falló, voy a SAPI:', e.message) } catch {}
+        sapiSpeak(text).then(() => finish(true))
+      }
+    })()
+  })
 }
 
 function piperSpeak(text, eng, tok) {
@@ -151,6 +213,9 @@ function stop() {
 // silent=true no reproduce (para tests/CI); igual verifica generación.
 async function selfTest({ silent = false } = {}) {
   const eng = getEngine()
+  if (eng.engine === 'edge') {
+    return { engine: 'edge', generated: null, played: null, note: 'Requiere internet; pruébalo con Probar voz.' }
+  }
   if (eng.engine !== 'piper') {
     return { engine: 'sapi', generated: null, played: null, note: 'Piper no disponible, usa voz del sistema.' }
   }

@@ -347,7 +347,13 @@ test('getEngine prefiere piper si hay vendor', () => {
   assert.equal(e.engine, 'piper')
 })
 
-await atest('selfTest silencioso verifica generación', async () => {
+await atest('getEngine edge resuelve voz', () => {
+  const e = tts.getEngine('edge')
+  assert.equal(e.engine, 'edge')
+  assert.equal(e.voice, 'es-MX-DaliaNeural')
+})
+
+test('selfTest silencioso verifica generación', async () => {
   const fs = require('fs')
   const path = require('path')
   const vendor = path.join(__dirname, '..', 'vendor')
@@ -662,6 +668,39 @@ test('wake.enginePath existe o null sin romper', () => {
   const wake = require('../src/main/wake')
   const p = wake.enginePath()
   assert.ok(p === null || typeof p === 'string')
+})
+
+console.log('\nvoces custom (HF)')
+const voices = require('../src/main/voices')
+
+test('filesFromUrl acepta HF y rechaza resto', () => {
+  const ok = voices.filesFromUrl('https://huggingface.co/X/Y/resolve/main/voz.onnx')
+  assert.equal(ok.file, 'voz.onnx')
+  assert.ok(ok.jsonUrl.endsWith('.onnx.json'))
+  assert.equal(voices.filesFromUrl('https://evil.com/voz.onnx'), null)
+  assert.equal(voices.filesFromUrl('https://huggingface.co/X/Y/blob/main/voz.zip'), null)
+  assert.equal(voices.filesFromUrl('no url'), null)
+})
+
+test('custom add/remove en memoria', () => {
+  memory.set('vox_custom_voices', [{ name: 'Mía', file: 'mia.onnx' }])
+  assert.equal(voices.listCustom().length, 1)
+  voices.removeCustomVoice('mia.onnx')
+  assert.equal(voices.listCustom().length, 0)
+})
+
+test('getEngine resuelve custom con override', () => {
+  const fs = require('fs')
+  const path = require('path')
+  const tmp = path.join(require('os').tmpdir(), 'vox-voice-test')
+  fs.mkdirSync(path.join(tmp, 'piper'), { recursive: true })
+  fs.mkdirSync(path.join(tmp, 'voices', 'custom'), { recursive: true })
+  fs.writeFileSync(path.join(tmp, 'piper', 'piper.exe'), 'x')
+  fs.writeFileSync(path.join(tmp, 'voices', 'custom', 'mia.onnx'), 'x'.repeat(2000))
+  const e = tts.getEngine('custom:mia.onnx', tmp)
+  assert.equal(e.engine, 'piper')
+  assert.ok(e.model.endsWith('mia.onnx'))
+  fs.rmSync(tmp, { recursive: true, force: true })
 })
 
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
