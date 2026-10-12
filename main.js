@@ -64,7 +64,7 @@ function createWindow(port) {
 
 function wakeOpts() {
   const cfg = config.load()
-  const opts = { device: cfg.micDevice || undefined, endPause: cfg.endPause || undefined }
+  const opts = { device: cfg.micDevice || undefined, endPause: cfg.endPause || undefined, patience: cfg.patience || undefined }
   // A1: modelo grande descargado (fuera del instalador).
   if (cfg.voiceModel === 'large') {
     try {
@@ -86,12 +86,19 @@ function setWakeMode(on) {
 }
 
 function registerShortcuts() {
-  globalShortcut.register('Ctrl+Shift+V', () => {
-    if (mainWindow) {
-      mainWindow.show(); mainWindow.focus()
-      mainWindow.webContents.send(IPC_CHANNELS.STATUS_UPDATE, 'toggle-recording')
-    }
-  })
+  const ptt = (() => { try { return !!config.load().pttMode } catch { return false } })()
+  if (!ptt) {
+    globalShortcut.register('Ctrl+Shift+V', () => {
+      if (mainWindow) {
+        mainWindow.show(); mainWindow.focus()
+        mainWindow.webContents.send(IPC_CHANNELS.STATUS_UPDATE, 'toggle-recording')
+      }
+    })
+  } else {
+    globalShortcut.register('Ctrl+Shift+V', () => {
+      if (mainWindow) { mainWindow.show(); mainWindow.focus() }
+    })
+  }
   globalShortcut.register('Ctrl+Shift+W', () => {
     setWakeMode(!wakeMode)
   })
@@ -107,7 +114,7 @@ ipcMain.handle('wake:toggle', () => setWakeMode(!wakeMode))
 
 let _speechBusy = false
 
-ipcMain.handle('speech:recognize', async () => {
+ipcMain.handle('speech:recognize', async (_event, opts) => {
   if (_speechBusy) { tts.speak('Estoy ocupado, espera un momento').catch(() => {}); return { error: 'Ocupado' } }
   if (!wake.isRunning()) {
     const cfg = config.load()
@@ -117,7 +124,7 @@ ipcMain.handle('speech:recognize', async () => {
   _speechBusy = true
   try {
     const trigger = path.join(os.tmpdir(), 'voxdesk_listen_trigger')
-    try { fs.writeFileSync(trigger, '1') } catch {}
+    try { fs.writeFileSync(trigger, (opts && opts.ptt) ? 'ptt' : '1') } catch {}
     return { viaWake: true }
   } finally {
     _speechBusy = false

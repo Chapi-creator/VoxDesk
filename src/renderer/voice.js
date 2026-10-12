@@ -3,20 +3,22 @@ class VoiceModule {
   constructor() {
     this.isListening = false
     this._stopped = false
+    this._ptt = false
     this.onResult = null
     this.onError = null
     this.onStateChange = null
   }
 
-  async start() {
+  async start(ptt) {
     if (this.isListening) return
     this._stopped = false
+    this._ptt = !!ptt
     this.isListening = true
     if (this.onStateChange) this.onStateChange(true)
 
     let result = null
     try {
-      result = await window.api.recognizeSpeech()
+      result = await window.api.recognizeSpeech(this._ptt ? { ptt: true } : {})
 
       if (this._stopped) return
       if (result && result.viaWake) return
@@ -38,7 +40,22 @@ class VoiceModule {
 
   stop() {
     this._stopped = true
+    this._ptt = false
     this.isListening = false
     if (this.onStateChange) this.onStateChange(false)
+  }
+
+  // PTT: devuelve true si consumió el evento (modo push-to-talk activo).
+  pttDown() {
+    if (!this._pttMode) return false
+    if (!this.isListening) this.start(true)
+    return true
+  }
+
+  pttUp() {
+    if (!this._pttMode || !this.isListening) return false
+    this.stop()
+    window.api.cancelSpeech()
+    return true
   }
 }

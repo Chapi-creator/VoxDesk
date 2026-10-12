@@ -1,4 +1,4 @@
-/*global VoiceModule, UIManager, SettingsManager, GuideManager, OnboardingManager*/
+﻿/*global VoiceModule, UIManager, SettingsManager, GuideManager, OnboardingManager*/
 ;(() => {
   const voice = new VoiceModule()
   const ui = new UIManager()
@@ -30,7 +30,7 @@
       ui.showResponse(result.message)
       if (result.success && result.speak) {
         ui.setSpeaking()
-        await window.api.speak(result.message)
+        await say(result.message)
       } else {
         _idleTimer = setTimeout(() => { _idleTimer = null; ui.setIdle() }, 3000)
         return
@@ -51,7 +51,7 @@
     ui.showResponse(result.message)
     if (result.success && result.speak) {
       ui.setSpeaking()
-      await window.api.speak(result.message)
+      await say(result.message)
       ui.setIdle()
     } else {
       _idleTimer = setTimeout(() => { _idleTimer = null; ui.setIdle() }, 3000)
@@ -75,6 +75,20 @@
   }
 
   voice.onResult = (transcript) => { handleCommand(transcript) }
+
+  window.api.getConfig().then(cfg => {
+    voice._pttMode = !!cfg.pttMode
+  }).catch(() => {})
+
+  // A2 PTT: mantener Ctrl+Shift+V = hablar sin cortes (solo con ventana al frente).
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.shiftKey && e.code === 'KeyV' && !e.repeat) {
+      if (voice.pttDown()) e.preventDefault()
+    }
+  })
+  document.addEventListener('keyup', (e) => {
+    if (e.ctrlKey && e.shiftKey && e.code === 'KeyV') voice.pttUp()
+  })
 
   voice.onError = (error) => {
     ui.setError(error)
@@ -125,7 +139,7 @@
       ui.showResponse(ev.text)
       if (ev.speak) {
         ui.setSpeaking()
-        await window.api.speak(ev.text)
+        await say(ev.text)
         ui.setIdle()
       }
     }
@@ -160,6 +174,29 @@
   }
   refreshTimers()
   setInterval(refreshTimers, 5000)
+
+  // A2: mute frontal con persistencia. Todo speak pasa por say().
+  let _muted = false
+  window.api.getPreference('vox_muted').then(v => {
+    _muted = v === '1' || v === true
+    updateMuteBtn()
+  }).catch(() => {})
+  const muteBtn = document.getElementById('btn-mute')
+  function updateMuteBtn() {
+    if (muteBtn) muteBtn.textContent = _muted ? '🔇' : '🔊'
+  }
+  if (muteBtn) {
+    muteBtn.addEventListener('click', () => {
+      _muted = !_muted
+      window.api.setPreference('vox_muted', _muted ? '1' : '').catch(() => {})
+      updateMuteBtn()
+      if (_muted) { window.api.stopSpeaking(); window.api.cancelSpeech() }
+    })
+  }
+  async function say(text) {
+    if (_muted || !text) return
+    await window.api.speak(text)
+  }
   const voiceBtn = document.getElementById('btn-test-voice')
   if (voiceBtn) {
     voiceBtn.addEventListener('click', () => {

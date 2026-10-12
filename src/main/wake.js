@@ -55,6 +55,7 @@ function wakeArgs(wakeWord, opts = {}) {
   if (w) args.push(w)
   if (opts.device) args.push('--device', String(opts.device))
   if (opts.endPause) args.push('--end-pause', String(opts.endPause))
+  if (opts.patience) args.push('--patience', String(opts.patience))
   if (opts.modelDir) args.push('--model-dir', String(opts.modelDir))
   return args
 }

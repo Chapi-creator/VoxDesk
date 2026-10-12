@@ -17,3 +17,4 @@ jobs:
           python-version: '3.13'
       - run: pip install onnxruntime numpy
       - run: python src/main/wake.py --self-test
+      - run: python src/main/wake.py --self-test-capture

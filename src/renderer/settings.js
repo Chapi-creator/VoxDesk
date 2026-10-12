@@ -16,6 +16,8 @@ class SettingsManager {
     this.elements.wakeWord = document.getElementById('settings-wakeword')
     this.elements.aiKeywords = document.getElementById('settings-aikeywords')
     this.elements.mic = document.getElementById('settings-mic')
+    this.elements.patience = document.getElementById('settings-patience')
+    this.elements.ptt = document.getElementById('settings-ptt')
     this.elements.endPause = document.getElementById('settings-endpause')
     this.elements.voiceModel = document.getElementById('settings-voicemodel')
     this.elements.modelStatus = document.getElementById('settings-model-status')
@@ -62,6 +64,8 @@ class SettingsManager {
     if (cfg.wakeWord) this.elements.wakeWord.value = cfg.wakeWord
     if (cfg.aiKeywords) this.elements.aiKeywords.value = cfg.aiKeywords
     if (cfg.endPause) this.elements.endPause.value = cfg.endPause
+    if (cfg.patience && this.elements.patience) this.elements.patience.value = cfg.patience
+    if (this.elements.ptt) this.elements.ptt.checked = !!cfg.pttMode
     if (cfg.voiceModel && this.elements.voiceModel) this.elements.voiceModel.value = cfg.voiceModel
     this._refreshModelStatus()
     if (cfg.proactivity && this.elements.proactivity) this.elements.proactivity.value = cfg.proactivity
@@ -304,6 +308,8 @@ class SettingsManager {
       aiKeywords: this.elements.aiKeywords.value.trim() || 'ia,bot,asistente',
       micDevice: this.elements.mic ? this.elements.mic.value : '',
       endPause: Math.min(5, Math.max(0.5, parseFloat(this.elements.endPause.value) || 1.2)),
+      patience: ['tranquilo', 'normal', 'rapido'].includes(this.elements.patience && this.elements.patience.value) ? this.elements.patience.value : 'normal',
+      pttMode: !!(this.elements.ptt && this.elements.ptt.checked),
       voiceModel: this.elements.voiceModel ? this.elements.voiceModel.value : 'small',
       proactivity: this.elements.proactivity ? this.elements.proactivity.value : 'total',
       voice: this.elements.voice ? this.elements.voice.value : 'mexicana',

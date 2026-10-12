@@ -132,6 +132,15 @@
         <input type="text" id="settings-aikeywords" placeholder="gemini, chapi, ia..." spellcheck="false" />
         <label>Micrófono</label>
         <select id="settings-mic"></select>
+        <label>Paciencia al escucharte</label>
+        <select id="settings-patience">
+          <option value="tranquilo">Tranquilo (te espera)</option>
+          <option value="normal">Normal</option>
+          <option value="rapido">Rápido (responde ya)</option>
+        </select>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:normal">
+          <input type="checkbox" id="settings-ptt" style="width:auto" /> Push-to-talk: mantener Ctrl+Shift+V para hablar sin cortes
+        </label>
         <label>Pausa de fin de frase (segundos)</label>
         <input type="number" id="settings-endpause" min="0.5" max="5" step="0.1" style="width:100%" />
         <label>Modelo de reconocimiento</label>
@@ -202,7 +211,7 @@
       <div class="shortcut">CTRL+SHIFT+V</div>
       <div class="bottom-row-right">
         <button class="btn-guide" id="btn-guide" title="Guía de comandos">❓</button>
-        <button class="btn-guide" id="btn-test-voice" title="Probar voz">🔊</button>
+        <button class="btn-guide" id="btn-mute" title="Silenciar voz">🔊</button>
         <button class="btn-gear" id="btn-gear" title="Ajustes">⚙</button>
         <div class="wake-indicator" id="wake-indicator">
           <span class="wake-dot"></span> WAKE

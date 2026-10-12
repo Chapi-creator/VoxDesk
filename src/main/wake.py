@@ -101,6 +101,8 @@ class HighPass:
         return struct.pack(fmt, *out)
 
 def emit(**kw):
+    if _quiet_emit:
+        return
     sys.stdout.write(json.dumps(kw) + '\n')
     sys.stdout.flush()
 
@@ -108,7 +110,21 @@ def detect_wake(text, words):
     lower = text.lower()
     return any(re.search(r'(?<!\w)' + re.escape(w) + r'(?!\w)', lower) for w in words)
 
-def capture_speech(stream, timeout=15, initial_frames=None, end_pause=None, vad=None):
+def adaptive_end(speech_sec, base, mult):
+    # A2: la pausa exigida crece con lo que llevas hablando.
+    if speech_sec < 2:
+        e = max(base, 1.5)
+    elif speech_sec < 8:
+        e = max(base, 2.5)
+    else:
+        e = max(base, 3.5)
+    return min(8.0, max(1.0, e * mult))
+
+
+PATIENCE_MULT = {'tranquilo': 1.8, 'normal': 1.0, 'rapido': 0.6}
+
+
+def capture_speech(stream, timeout=30, initial_frames=None, end_pause=None, vad=None, patience='normal', stop_trigger=None):
     frames = []
     preroll = collections.deque(maxlen=20)
     triggered = False
@@ -117,14 +133,26 @@ def capture_speech(stream, timeout=15, initial_frames=None, end_pause=None, vad=
     last_emit = 0.0
     hp = HighPass()
     END = end_pause if end_pause else END_PAUSE
+    MULT = PATIENCE_MULT.get(patience, 1.0)
+    STOP = stop_trigger or os.path.join(os.environ.get('TEMP', ''), 'voxdesk_stop_trigger')
     floor = 0.02
     consec = [0]
+    speech_sec = [0.0]
     pending = list(initial_frames) if initial_frames else None
     if vad is not None:
         try:
             vad.reset()
         except Exception:
             vad = None
+    # Partial incremental (sin vosk no hay partial: se usa solo energía+END).
+    rec = None
+    if vosk is not None and _model is not None:
+        try:
+            rec = vosk.KaldiRecognizer(_model, RATE)
+        except Exception:
+            rec = None
+    last_partial = ['']
+    partial_since = [0.0]
 
     def energy(frame):
         nonlocal floor
@@ -146,6 +174,8 @@ def capture_speech(stream, timeout=15, initial_frames=None, end_pause=None, vad=
                 is_speech = energy(frame)
         else:
             is_speech = energy(frame)
+        if is_speech:
+            speech_sec[0] += FRAME_MS / 1000.0
         if not triggered:
             preroll.append(frame)
             if is_speech:
@@ -185,7 +215,13 @@ def capture_speech(stream, timeout=15, initial_frames=None, end_pause=None, vad=
         elapsed = now - started
         if elapsed > timeout:
             break
-        if triggered and speech_ended and now - speech_ended > END:
+        end_need = adaptive_end(speech_sec[0], END, MULT)
+        partial_fresh = (now - partial_since[0]) < 1.0
+        if triggered and speech_ended and (now - speech_ended) > end_need and not partial_fresh:
+            break
+        if os.path.exists(STOP):
+            try: os.remove(STOP)
+            except: pass
             break
         if os.path.exists(LISTEN_TRIGGER):
             try: os.remove(LISTEN_TRIGGER)
@@ -194,6 +230,16 @@ def capture_speech(stream, timeout=15, initial_frames=None, end_pause=None, vad=
         frame = hp.process(stream.read(FRAME_SIZE, exception_on_overflow=False))
         level = rms_level(frame)
         is_speech = consume(frame)
+
+        if rec is not None and triggered:
+            try:
+                rec.AcceptWaveform(frame)
+                p = json.loads(rec.PartialResult()).get('partial', '')
+                if p != last_partial[0]:
+                    last_partial[0] = p
+                    partial_since[0] = now
+            except Exception:
+                pass
 
         if now - last_emit >= LEVEL_INTERVAL:
             emit(level=round(level, 4), speaking=is_speech or triggered, vad="speaking" if triggered else "listening")
@@ -205,6 +251,7 @@ def capture_speech(stream, timeout=15, initial_frames=None, end_pause=None, vad=
     return b''.join(frames)
 
 _model = None
+_quiet_emit = False
 
 def recognize(raw):
     global _model
@@ -262,16 +309,73 @@ def self_test():
     return 0 if ok else 1
 
 
+def self_test_capture():
+    # Sin micro ni modelos: pausa media NO corta, pausa larga SÍ (VAD energía).
+    # OJO: el END es tiempo real; se mockea el reloj (32ms/frame) para ir rápido.
+    global _quiet_emit
+    _quiet_emit = True
+    import math
+    real_time = time.time
+    clock = [real_time()]
+
+    def fake_time():
+        return clock[0]
+
+    sr = RATE
+    n = FRAME_SIZE
+
+    def tone(sec):
+        out = bytearray()
+        for i in range(int(sr * sec)):
+            v = int(20000 * math.sin(2 * math.pi * 440 * i / sr))
+            out += struct.pack('<h', v)
+        return bytes(out)
+
+    def silence(sec):
+        return bytes(n * 2 * int(sr * sec / n))
+
+    seq = tone(1.0) + silence(0.8) + tone(1.0) + silence(6.0)
+
+    class FakeStream:
+        def __init__(self, data):
+            self.data = data
+            self.pos = 0
+
+        def read(self, size, exception_on_overflow=False):
+            clock[0] += size / sr
+            chunk = self.data[self.pos:self.pos + size * 2]
+            self.pos += size * 2
+            if len(chunk) < size * 2:
+                chunk = chunk + bytes(size * 2 - len(chunk))
+            return chunk
+
+    time.time = fake_time
+    try:
+        raw = capture_speech(FakeStream(seq), timeout=30, vad=None)
+    finally:
+        time.time = real_time
+        _quiet_emit = False
+    if raw is None:
+        print(json.dumps({'ok': False, 'error': 'no capturó nada'}))
+        return 1
+    dur = len(raw) / 2 / sr
+    ok = 4.0 < dur < 7.5
+    print(json.dumps({'ok': ok, 'capturado_s': round(dur, 2)}))
+    return 0 if ok else 1
+
+
 def main():
     global stream, p, _model, WAKE_WORDS, END_PAUSE
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument('wakewords', nargs='*')
     ap.add_argument('--device', default='')
-    ap.add_argument('--end-pause', type=float, default=1.2)
+    ap.add_argument('--end-pause', type=float, default=2.2)
+    ap.add_argument('--patience', default='normal', choices=['tranquilo', 'normal', 'rapido'])
     ap.add_argument('--model-dir', default='')
     ap.add_argument('--list-devices', action='store_true')
     ap.add_argument('--self-test', action='store_true')
+    ap.add_argument('--self-test-capture', action='store_true')
     args = ap.parse_args()
     if args.wakewords:
         WAKE_WORDS = [w.lower() for w in args.wakewords]
@@ -279,6 +383,9 @@ def main():
 
     if args.self_test:
         sys.exit(self_test())
+
+    if args.self_test_capture:
+        sys.exit(self_test_capture())
 
     if args.list_devices:
         try:
@@ -339,10 +446,15 @@ def main():
                 text = result.get('partial', '')
 
             if os.path.exists(LISTEN_TRIGGER):
+                try:
+                    with open(LISTEN_TRIGGER) as _tf:
+                        _is_ptt = _tf.read().strip() == 'ptt'
+                except Exception:
+                    _is_ptt = False
                 try: os.remove(LISTEN_TRIGGER)
                 except: pass
-                audio = capture_speech(stream, timeout=15, initial_frames=list(ringbuf),
-                                         end_pause=args.end_pause, vad=vad)
+                audio = capture_speech(stream, timeout=(60 if _is_ptt else 30), initial_frames=list(ringbuf),
+                                         end_pause=args.end_pause, vad=vad, patience=args.patience)
                 if audio is not None:
                     recognize(audio)
                 else:
@@ -355,7 +467,7 @@ def main():
                 rec = vosk.KaldiRecognizer(_model, RATE)
 
                 audio = capture_speech(stream, initial_frames=list(ringbuf),
-                                         end_pause=args.end_pause, vad=vad)
+                                         end_pause=args.end_pause, vad=vad, patience=args.patience)
                 if audio is not None:
                     recognize(audio)
                 else:

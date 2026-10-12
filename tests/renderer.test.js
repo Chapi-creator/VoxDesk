@@ -174,6 +174,8 @@ test('SettingsManager: init carga mics + save guarda mic/endpause', async () => 
   await new Promise(r => setTimeout(r, 50))
   assert.equal(saved.micDevice, 'Micro A')
   assert.equal(saved.endPause, 2)
+  assert.equal(saved.patience, 'normal')
+  assert.equal(saved.pttMode, false)
 })
 
 test('OnboardingManager: flujo 3 pasos con prueba', async () => {

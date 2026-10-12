@@ -24,6 +24,16 @@ class GuideManager {
     }
 
     this.elements.list.innerHTML = ''
+    const voiceHeader = document.createElement('div')
+    voiceHeader.className = 'guide-group'
+    voiceHeader.innerHTML = '<strong>Para que no te corte</strong>'
+    this.elements.list.appendChild(voiceHeader)
+    for (const tip of ['Habla seguido: te espero si haces pausas', 'Si te corto, sigue con la palabra clave y retomo', 'Mantén Ctrl+Shift+V (modo PTT en Ajustes) para cero cortes']) {
+      const div = document.createElement('div')
+      div.className = 'guide-item'
+      div.innerHTML = `<span class="desc">${tip}</span>`
+      this.elements.list.appendChild(div)
+    }
     const tryHeader = document.createElement('div')
     tryHeader.className = 'guide-group'
     tryHeader.innerHTML = '<strong>Toca para probar</strong>'

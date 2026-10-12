@@ -2,7 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('api', {
   executeCommand: (transcript) => ipcRenderer.invoke('command:execute', transcript),
-  recognizeSpeech: () => ipcRenderer.invoke('speech:recognize'),
+  recognizeSpeech: (opts) => ipcRenderer.invoke('speech:recognize', opts || {}),
   cancelSpeech: () => ipcRenderer.invoke('speech:cancel'),
   speak: (text) => ipcRenderer.invoke('tts:speak', text),
   stopSpeaking: () => ipcRenderer.invoke('tts:stop'),
