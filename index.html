@@ -53,28 +53,31 @@
         </div>
         <div id="timers" class="timers"></div>
       <div class="content-footer">
-        <div class="cmd-row">
-          <span class="cmd-prompt">›</span>
-          <input id="cmd-input" class="cmd-input" placeholder="Escribe una orden y pulsa Enter…" spellcheck="false" autocomplete="off" />
-        </div>
         <div class="level-meter" id="level-meter">
           <canvas id="level-canvas"></canvas>
           <span class="vad-label idle" id="vad-label">INACTIVO</span>
         </div>
-        <button id="btn-record" class="btn-record" title="Pulsa para hablar / Doble clic para wake">
-          <span class="btn-dot"></span>
-        </button>
-        <button id="btn-stop" class="btn-stop" title="Detener la voz">
-          <span class="stop-sq"></span>
-        </button>
+        <div class="controls-row">
+          <button id="btn-record" class="btn-record" title="Pulsa para hablar">
+            <span class="btn-dot"></span>
+          </button>
+          <button id="btn-stop" class="btn-stop" title="Detener la voz">
+            <span class="stop-sq"></span>
+          </button>
+        </div>
+        <div class="cmd-row">
+          <span class="cmd-prompt">›</span>
+          <input id="cmd-input" class="cmd-input" placeholder="Escribe una orden y pulsa Enter…" spellcheck="false" autocomplete="off" />
+        </div>
       </div>
     </div>
 
-    <div class="settings-panel" id="settings-panel">
-      <div class="header-row">
-        <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.2);">Ajustes</span>
-        <button class="btn-back" id="btn-settings-back">←</button>
+    <div class="settings-panel sheet" id="settings-panel">
+      <div class="sheet-head">
+        <span>Ajustes</span>
+        <button class="btn-back" id="btn-settings-back">← Atrás</button>
       </div>
+      <div class="sheet-body">
       <div class="settings-section">
         <div class="settings-section-title">Inteligencia Artificial</div>
         <div class="status-msg" id="settings-ai-hint">Sin IA Vox solo obedece comandos. Con IA razona y explica.</div>
@@ -197,25 +200,31 @@
       </div>
       <button class="btn-save" id="btn-settings-save">Guardar</button>
       <div class="status-msg" id="settings-status"></div>
+      </div>
     </div>
 
-    <div class="guide-panel" id="guide-panel">
-      <div class="guide-header">
+    <div class="guide-panel sheet" id="guide-panel">
+      <div class="sheet-head">
         <span>Comandos de voz</span>
-        <button class="btn-back" id="btn-guide-back">←</button>
+        <button class="btn-back" id="btn-guide-back">← Atrás</button>
       </div>
+      <div class="sheet-body">
       <div id="guide-list"></div>
+      </div>
     </div>
 
     <div class="bottom-row">
       <div class="shortcut">CTRL+SHIFT+V</div>
       <div class="bottom-row-right">
-        <button class="btn-guide" id="btn-guide" title="Guía de comandos">❓</button>
-        <button class="btn-guide" id="btn-mute" title="Silenciar voz">🔊</button>
-        <button class="btn-gear" id="btn-gear" title="Ajustes">⚙</button>
+        <button class="icon-btn" id="btn-guide" title="Guía de comandos"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2.5h7.5A2.5 2.5 0 0113 5v8.5H5.5A2.5 2.5 0 013 11V2.5z"/><path d="M3 11.5h10"/></svg></button>
+        <button class="icon-btn" id="btn-test-voice" title="Probar voz"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 6v4h2.5L9 13.5v-11L5 6H2.5z" stroke-linejoin="round"/><path d="M11 5.5a3.5 3.5 0 010 5M12.8 3.8a6 6 0 010 8.4"/></svg></button>
+        <button class="icon-btn" id="btn-mute" title="Silenciar voz">🔇</button>
+        <button class="icon-btn" id="btn-gear" title="Ajustes"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M12.4 3.6L11 5M5 11l-1.4 1.4"/></svg></button>
         <div class="wake-indicator" id="wake-indicator">
           <span class="wake-dot"></span> WAKE
         </div>
+      </div>
+    </div>
       </div>
     </div>
   </div>

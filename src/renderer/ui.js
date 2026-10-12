@@ -202,9 +202,14 @@ class UIManager {
     if (!this.elements.history) return
     const e = document.createElement('div')
     e.className = 'hist-entry'
+    const t = document.createElement('span'); t.className = 'h-time'
+    try {
+      const d = new Date()
+      t.textContent = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+    } catch { t.textContent = '' }
     const q = document.createElement('span'); q.className = 'h-q'; q.textContent = transcript
     const a = document.createElement('span'); a.className = 'h-a'; a.textContent = response
-    e.appendChild(q); e.appendChild(a)
+    e.appendChild(t); e.appendChild(q); e.appendChild(a)
     if (transcript && !String(transcript).startsWith('[')) {
       const fb = document.createElement('span'); fb.className = 'h-fb'
       const up = document.createElement('button'); up.className = 'h-fb-btn'; up.textContent = '👍'; up.title = 'Bien así'

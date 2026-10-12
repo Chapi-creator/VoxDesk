@@ -50,7 +50,7 @@ function startServer() {
 
 function createWindow(port) {
   mainWindow = new BrowserWindow({
-    width: 400, height: 480, resizable: true, maxHeight: 560, maxWidth: 440,
+    width: 440, height: 560, resizable: true, maxHeight: 640, maxWidth: 480,
     frame: false, transparent: false,
     alwaysOnTop: true, skipTaskbar: false,
     webPreferences: {

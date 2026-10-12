@@ -247,11 +247,12 @@ test('UIManager: historial con feedback', () => {
   ui.onFeedback = (t, good) => { fb = [t, good] }
   ui.pushHistory('hola', 'ok')
   const e = doc.getElementById('history').children[0]
-  assert.equal(e.children.length, 3)
-  e.children[2].children[0].listeners.click[0]()
+  assert.equal(e.children.length, 4)
+  assert.ok(/^\d\d:\d\d$/.test(e.children[0].textContent))
+  e.children[3].children[0].listeners.click[0]()
   assert.deepEqual(fb, ['hola', true])
   ui.pushHistory('[sistema]', 'aviso')
-  assert.equal(doc.getElementById('history').children[1].children.length, 2)
+  assert.equal(doc.getElementById('history').children[1].children.length, 3)
 })
 
 test('UIManager: buscar historial + timers + health', () => {
