@@ -64,7 +64,15 @@ function createWindow(port) {
 
 function wakeOpts() {
   const cfg = config.load()
-  return { device: cfg.micDevice || undefined, endPause: cfg.endPause || undefined }
+  const opts = { device: cfg.micDevice || undefined, endPause: cfg.endPause || undefined }
+  // A1: modelo grande descargado (fuera del instalador).
+  if (cfg.voiceModel === 'large') {
+    try {
+      const d = require('path').join(config.modelsDir(), 'vosk-model-es-0.42')
+      if (require('fs').existsSync(require('path').join(d, 'am', 'final.mdl'))) opts.modelDir = d
+    } catch {}
+  }
+  return opts
 }
 
 function setWakeMode(on) {
@@ -473,6 +481,67 @@ ipcMain.handle('voices:add', async (_event, name, url) => {
 
 ipcMain.handle('voices:remove', (_event, file) => {
   try { return require('./src/main/voices').removeCustomVoice(file) } catch { return [] }
+})
+
+ipcMain.handle('models:status', () => {
+  try {
+    const d = require('path').join(config.modelsDir(), 'vosk-model-es-0.42', 'am', 'final.mdl')
+    return { largeDownloaded: require('fs').existsSync(d) }
+  } catch {
+    return { largeDownloaded: false }
+  }
+})
+
+// A1: descarga 1.4 GB con progreso (eventos models:progress). Nada silencioso.
+ipcMain.handle('models:download-large', async () => {
+  const https = require('https')
+  const fs = require('fs')
+  const path = require('path')
+  const dir = path.join(config.modelsDir(), 'vosk-model-es-0.42')
+  const zip = path.join(require('os').tmpdir(), 'vosk-model-es-0.42.zip')
+  const send = (pct) => { if (mainWindow) mainWindow.webContents.send('models:progress', { pct }) }
+  const get = (url, redirs = 0) => new Promise((resolve, reject) => {
+    if (redirs > 5) return reject(new Error('redirects'))
+    https.get(url, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        res.resume()
+        get(res.headers.location, redirs + 1).then(resolve, reject)
+        return
+      }
+      if (res.statusCode !== 200) { res.resume(); reject(new Error('HTTP ' + res.statusCode)); return }
+      const total = parseInt(res.headers['content-length'] || '0', 10)
+      let got = 0
+      const out = fs.createWriteStream(zip)
+      res.on('data', (c) => {
+        got += c.length
+        if (total) {
+          const pct = Math.floor((got / total) * 90)
+          if (pct !== get._last || pct % 5 === 0) { get._last = pct; send(pct) }
+        }
+      })
+      res.pipe(out)
+      out.on('finish', () => { out.close(); resolve() })
+      out.on('error', reject)
+    }).on('error', reject)
+  })
+  try {
+    send(1)
+    await get('https://alphacephei.com/vosk/models/vosk-model-es-0.42.zip')
+    send(92)
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    await new Promise((resolve, reject) => {
+      const { execFile } = require('child_process')
+      execFile('powershell', ['-NoProfile', '-Command', `Expand-Archive -Path '${zip}' -DestinationPath '${path.join(config.modelsDir())}' -Force`], { timeout: 30 * 60000 }, (err) => err ? reject(err) : resolve())
+    })
+    try { fs.unlinkSync(zip) } catch {}
+    send(100)
+    if (mainWindow) mainWindow.webContents.send('models:progress', { pct: 100, done: true, ok: true })
+    return true
+  } catch (e) {
+    try { fs.unlinkSync(zip) } catch {}
+    if (mainWindow) mainWindow.webContents.send('models:progress', { pct: 0, done: true, ok: false, error: e.message })
+    return false
+  }
 })
 
 ipcMain.handle('memory:get', (_e, key) => memory.get(key))

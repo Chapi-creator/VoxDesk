@@ -269,6 +269,7 @@ def main():
     ap.add_argument('wakewords', nargs='*')
     ap.add_argument('--device', default='')
     ap.add_argument('--end-pause', type=float, default=1.2)
+    ap.add_argument('--model-dir', default='')
     ap.add_argument('--list-devices', action='store_true')
     ap.add_argument('--self-test', action='store_true')
     args = ap.parse_args()
@@ -290,7 +291,14 @@ def main():
         if vosk is None or pyaudio is None:
             emit(error='Faltan dependencias de audio (vosk, pyaudio)')
             return
-        _model = vosk.Model(MODEL_PATH)
+        model_path = MODEL_PATH
+        if args.model_dir:
+            cand = os.path.join(args.model_dir, 'am', 'final.mdl')
+            if os.path.exists(args.model_dir) and os.path.exists(cand):
+                model_path = args.model_dir
+            else:
+                emit(error='Modelo no válido en ' + args.model_dir + ', uso el incluido')
+        _model = vosk.Model(model_path)
 
         rec = vosk.KaldiRecognizer(_model, RATE)
         p = pyaudio.PyAudio()

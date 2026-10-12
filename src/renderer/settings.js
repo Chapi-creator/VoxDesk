@@ -17,6 +17,11 @@ class SettingsManager {
     this.elements.aiKeywords = document.getElementById('settings-aikeywords')
     this.elements.mic = document.getElementById('settings-mic')
     this.elements.endPause = document.getElementById('settings-endpause')
+    this.elements.voiceModel = document.getElementById('settings-voicemodel')
+    this.elements.modelStatus = document.getElementById('settings-model-status')
+    this.elements.modelDlBtn = document.getElementById('btn-model-dl')
+    this.elements.modelMeter = document.getElementById('settings-model-meter')
+    this.elements.modelFill = document.getElementById('settings-model-fill')
     this.elements.username = document.getElementById('settings-username')
     this.elements.proactivity = document.getElementById('settings-proactivity')
     this.elements.voice = document.getElementById('settings-voice')
@@ -57,6 +62,8 @@ class SettingsManager {
     if (cfg.wakeWord) this.elements.wakeWord.value = cfg.wakeWord
     if (cfg.aiKeywords) this.elements.aiKeywords.value = cfg.aiKeywords
     if (cfg.endPause) this.elements.endPause.value = cfg.endPause
+    if (cfg.voiceModel && this.elements.voiceModel) this.elements.voiceModel.value = cfg.voiceModel
+    this._refreshModelStatus()
     if (cfg.proactivity && this.elements.proactivity) this.elements.proactivity.value = cfg.proactivity
     if (cfg.voice && this.elements.voice) this.elements.voice.value = cfg.voice
     if (cfg.voiceRate && this.elements.voiceRate) { this.elements.voiceRate.value = cfg.voiceRate; this.elements.voiceRateVal.textContent = cfg.voiceRate }
@@ -109,6 +116,19 @@ class SettingsManager {
     if (this.elements.ollamaDlBtn) this.elements.ollamaDlBtn.addEventListener('click', async () => {
       this.elements.ollamaStatus.textContent = 'Descargando instalador… complétalo y vuelve.'
       await window.api.ollamaInstall()
+    })
+    if (this.elements.modelDlBtn) this.elements.modelDlBtn.addEventListener('click', async () => {
+      this.elements.modelMeter.style.display = ''
+      this.elements.modelFill.style.width = '0%'
+      this.elements.modelStatus.textContent = 'Descargando 1.4 GB… no cierres.'
+      await window.api.modelsDownloadLarge()
+    })
+    if (window.api.onModelsProgress) window.api.onModelsProgress((r) => {
+      if (this.elements.modelFill) this.elements.modelFill.style.width = (r.pct || 0) + '%'
+      if (r.done) {
+        if (this.elements.modelMeter) this.elements.modelMeter.style.display = 'none'
+        this._refreshModelStatus()
+      }
     })
     if (this.elements.voiceAddBtn) this.elements.voiceAddBtn.addEventListener('click', async () => {
       const url = (this.elements.voiceUrl.value || '').trim()
@@ -175,6 +195,7 @@ class SettingsManager {
     this.elements.saveBtn.classList.remove('saved')
     this._toggleUrlField()
     this._refreshOllama()
+    this._refreshModelStatus()
     await this._refreshCustomVoices()
     const p = this.elements.provider.value
     if (p === 'local' || this.elements.apiKey.value.trim()) await this._fetchModels()
@@ -215,6 +236,18 @@ class SettingsManager {
       box.appendChild(row)
     }
     if (savedVoice && [...sel.options].some(o => o.value === savedVoice)) sel.value = savedVoice
+  }
+
+  async _refreshModelStatus() {
+    if (!this.elements.modelStatus) return
+    try {
+      const st = await window.api.modelsStatus()
+      this.elements.modelStatus.textContent = st.largeDownloaded
+        ? 'Modelo preciso descargado. Elíguelo arriba.'
+        : 'Modelo preciso no descargado (1.4 GB).'
+    } catch {
+      this.elements.modelStatus.textContent = ''
+    }
   }
 
   async _refreshOllama() {
@@ -271,6 +304,7 @@ class SettingsManager {
       aiKeywords: this.elements.aiKeywords.value.trim() || 'ia,bot,asistente',
       micDevice: this.elements.mic ? this.elements.mic.value : '',
       endPause: Math.min(5, Math.max(0.5, parseFloat(this.elements.endPause.value) || 1.2)),
+      voiceModel: this.elements.voiceModel ? this.elements.voiceModel.value : 'small',
       proactivity: this.elements.proactivity ? this.elements.proactivity.value : 'total',
       voice: this.elements.voice ? this.elements.voice.value : 'mexicana',
       voiceRate: this.elements.voiceRate ? parseFloat(this.elements.voiceRate.value) || 1 : 1,

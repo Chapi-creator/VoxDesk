@@ -48,6 +48,17 @@ let _retryCount = 0
 let _startTime = 0
 let _wakeWord = 'asistente'
 
+// Pura y testeable: argv para wake.exe/wake.py.
+function wakeArgs(wakeWord, opts = {}) {
+  const args = []
+  const w = wakeWord || _wakeWord
+  if (w) args.push(w)
+  if (opts.device) args.push('--device', String(opts.device))
+  if (opts.endPause) args.push('--end-pause', String(opts.endPause))
+  if (opts.modelDir) args.push('--model-dir', String(opts.modelDir))
+  return args
+}
+
 function start(wakeWord, opts = {}) {
   if (wakeWord) _wakeWord = wakeWord
   if (running) return true
@@ -65,12 +76,7 @@ function start(wakeWord, opts = {}) {
   running = true
   _buffer = ''
   const gen = ++_gen
-  const args = []
-  if (wakeWord) args.push(wakeWord)
-  else if (_wakeWord) args.push(_wakeWord)
-  if (opts.device) args.push('--device', String(opts.device))
-  if (opts.endPause) args.push('--end-pause', String(opts.endPause))
-
+  const args = wakeArgs(wakeWord, opts)
   _startTime = Date.now()
   const p = spawn(WAKE_EXE, args, {
     windowsHide: true,
@@ -160,4 +166,4 @@ function enginePath() {
   return fs.existsSync(WAKE_EXE) ? WAKE_EXE : null
 }
 
-module.exports = { start, stop, isRunning, listDevices, shouldHear, enginePath, set onWake(v) { onWake = v }, set onText(v) { onText = v }, set onError(v) { onError = v }, set onLevel(v) { onLevel = v }, set onDown(v) { onDown = v } }
+module.exports = { start, stop, isRunning, listDevices, shouldHear, enginePath, wakeArgs, set onWake(v) { onWake = v }, set onText(v) { onText = v }, set onError(v) { onError = v }, set onLevel(v) { onLevel = v }, set onDown(v) { onDown = v } }

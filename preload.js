@@ -50,6 +50,11 @@ contextBridge.exposeInMainWorld('api', {
   voicesList: () => ipcRenderer.invoke('voices:list'),
   voicesAdd: (name, url) => ipcRenderer.invoke('voices:add', name, url),
   voicesRemove: (file) => ipcRenderer.invoke('voices:remove', file),
+  modelsStatus: () => ipcRenderer.invoke('models:status'),
+  modelsDownloadLarge: () => ipcRenderer.invoke('models:download-large'),
+  onModelsProgress: (callback) => {
+    ipcRenderer.on('models:progress', (_event, data) => callback(data))
+  },
   listMicDevices: () => ipcRenderer.invoke('audio:devices'),
   getPreference: (key) => ipcRenderer.invoke('memory:get', key),
   setPreference: (key, value) => ipcRenderer.invoke('memory:set', key, value),

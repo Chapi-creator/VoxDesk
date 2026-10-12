@@ -703,6 +703,23 @@ test('getEngine resuelve custom con override', () => {
   fs.rmSync(tmp, { recursive: true, force: true })
 })
 
+console.log('\nmodelo grande (A1)')
+const wakeMod = require('../src/main/wake')
+
+test('config trae voiceModel small', () => {
+  const config = require('../src/main/config')
+  config.setUserDataPath(require('os').tmpdir())
+  assert.equal(config.load().voiceModel, 'small')
+})
+
+test('wakeArgs arma flags', () => {
+  assert.deepEqual(wakeMod.wakeArgs('hola', {}), ['hola'])
+  assert.deepEqual(
+    wakeMod.wakeArgs('hola', { device: 'mic', endPause: 2, modelDir: 'D:/m' }),
+    ['hola', '--device', 'mic', '--end-pause', '2', '--model-dir', 'D:/m']
+  )
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }
