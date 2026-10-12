@@ -1,4 +1,4 @@
-const assert = require('assert')
+﻿const assert = require('assert')
 const path = require('path')
 
 process.chdir(path.join(__dirname, '..'))
@@ -583,6 +583,69 @@ test('route con extra usa ejemplos de patrones', () => {
   const r = understand.route('apaga la compu', XTRA)
   assert.ok(r.conf >= understand.HI, r.conf)
   assert.equal(r.canon, 'apaga el equipo')
+})
+
+console.log('\npulir + añadir (P3/A2/A1/A3)')
+
+test('voiceRate default 1', () => {
+  const config = require('../src/main/config')
+  config.setUserDataPath(require('os').tmpdir())
+  assert.equal(config.load().voiceRate, 1)
+})
+
+const notes = require('../src/main/commands/notes')
+
+await atest('notas: crear, listar, leer, buscar, borrar', async () => {
+  const r1 = await notes.execute('comprar pan')
+  assert.ok(r1.message.includes('Nota 1'))
+  const r2 = await notes.execute('lista mis notas')
+  assert.ok(r2.message.includes('comprar pan'))
+  const r3 = await notes.execute('busca pan en mis notas')
+  assert.ok(r3.message.includes('comprar pan'))
+  const r4 = await notes.execute('lee la nota 1')
+  assert.ok(r4.message.includes('comprar pan'))
+  const r5 = await notes.execute('borra la nota 1')
+  assert.ok(r5.message.includes('borrada'))
+  const r6 = await notes.execute('lista mis notas')
+  assert.ok(r6.message.includes('No tienes notas'))
+})
+
+await atest('notas: vacía pregunta', async () => {
+  const r = await notes.execute('')
+  assert.equal(r.success, false)
+})
+
+const timer = require('../src/main/commands/timer')
+
+test('parseRepeat: cada hora/día/N', () => {
+  assert.equal(timer.parseRepeat('recuérdame tomar agua cada hora').ms, 3600000)
+  assert.equal(timer.parseRepeat('avísame cada día').ms, 86400000)
+  assert.equal(timer.parseRepeat('cada 30 minutos').ms, 1800000)
+  assert.equal(timer.parseRepeat('alarma en 10 segundos'), null)
+})
+
+await atest('recurrente se programa y lista', async () => {
+  const r = await timer.execute('recuérdame tomar agua en 10 segundos cada hora')
+  assert.ok(r.message.includes('cada hora'))
+  const l = await timer.execute('qué recordatorios tengo')
+  assert.ok(l.message.includes('tomar agua'))
+  const c = await timer.execute('cancela el recordatorio 1')
+  assert.ok(c.message.includes('cancelado'))
+})
+
+const profiles = require('../src/main/profiles')
+
+test('perfiles existen con pasos', () => {
+  assert.deepEqual(profiles.list(), ['trabajo', 'juego', 'estudio', 'normal'])
+  assert.ok(profiles.get('trabajo').steps.length >= 2)
+  assert.equal(profiles.get('inexistente'), null)
+})
+
+test('modo trabajo rutea a macro', () => {
+  const smart = require('../src/main/smart-exec')
+  const top = smart.route('modo trabajo')[0]
+  const r = top.pattern.handler(['modo trabajo', 'trabajo'])
+  assert.ok(Array.isArray(r._macro) && r._macro.length >= 2)
 })
 
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)

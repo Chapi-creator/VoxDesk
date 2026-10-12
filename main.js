@@ -485,7 +485,7 @@ async function handleAndTrack(transcript, depth = 0) {
   _lastCmdAt = Date.now()
   _lastSleepState = ''
   // Silencio por voz: cualquier orden lo levanta (salvo las que lo ponen/quitan).
-  if (!/^(modo silencio|no me hables|descansa|c[aá]llate un rato|despierta|ya puedes hablar|modo normal|vuelve)$/i.test(transcript)) {
+  if (!/^(modo silencio|no me hables|descansa|c[aá]llate un rato|despierta|ya puedes hablar|vuelve)$/i.test(transcript)) {
     try { memory.del('vox_quiet') } catch {}
   }
   // Fase 16B2: cualquier orden levanta el silencio (salvo las que lo ponen/quitan).
@@ -651,13 +651,17 @@ async function lifeTick() {
 }
 
 app.whenReady().then(async () => {
+  const t0 = Date.now()
+  const mark = (m) => { try { logger.info(`boot ${m} +${Date.now() - t0}ms`) } catch {} }
   app.setPath('userData', path.join(app.getPath('appData'), 'ai-desktop-assistant'))
   config.setUserDataPath(app.getPath('userData'))
   memory.setUserDataPath(app.getPath('userData'))
   logger.init(app.getPath('userData'))
   logger.info('App started')
   const port = await startServer()
+  mark('server')
   createWindow(port)
+  mark('window')
   registerShortcuts()
 
   if (app.isPackaged) {
@@ -671,8 +675,10 @@ app.whenReady().then(async () => {
     require('./src/main/commands/timer').loadPending()
   }
   startWake()
+  mark('wake')
   setTimeout(() => lifeTick(), 30000)
   setInterval(() => lifeTick(), 60000)
+  mark('ready')
 
   const iconPath = path.join(__dirname, 'assets', 'icon.png')
   const icon = fs.existsSync(iconPath)

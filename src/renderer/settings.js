@@ -20,6 +20,8 @@ class SettingsManager {
     this.elements.username = document.getElementById('settings-username')
     this.elements.proactivity = document.getElementById('settings-proactivity')
     this.elements.voice = document.getElementById('settings-voice')
+    this.elements.voiceRate = document.getElementById('settings-voicerate')
+    this.elements.voiceRateVal = document.getElementById('settings-voicerate-val')
     this.elements.ttsTestBtn = document.getElementById('btn-tts-test')
     this.elements.ttsDiagBtn = document.getElementById('btn-tts-diag')
     this.elements.ttsStatus = document.getElementById('settings-tts-status')
@@ -53,6 +55,7 @@ class SettingsManager {
     if (cfg.endPause) this.elements.endPause.value = cfg.endPause
     if (cfg.proactivity && this.elements.proactivity) this.elements.proactivity.value = cfg.proactivity
     if (cfg.voice && this.elements.voice) this.elements.voice.value = cfg.voice
+    if (cfg.voiceRate && this.elements.voiceRate) { this.elements.voiceRate.value = cfg.voiceRate; this.elements.voiceRateVal.textContent = cfg.voiceRate }
     try {
       const savedName = await window.api.getPreference('vox_name')
       if (savedName && this.elements.username) this.elements.username.value = savedName
@@ -69,6 +72,9 @@ class SettingsManager {
 
     this.elements.temperature.addEventListener('input', () => {
       this.elements.temperatureVal.textContent = this.elements.temperature.value
+    })
+    if (this.elements.voiceRate) this.elements.voiceRate.addEventListener('input', () => {
+      this.elements.voiceRateVal.textContent = this.elements.voiceRate.value
     })
 
     this.elements.gearBtn.addEventListener('click', () => this.toggle())
@@ -212,6 +218,7 @@ class SettingsManager {
       endPause: Math.min(5, Math.max(0.5, parseFloat(this.elements.endPause.value) || 1.2)),
       proactivity: this.elements.proactivity ? this.elements.proactivity.value : 'total',
       voice: this.elements.voice ? this.elements.voice.value : 'mexicana',
+      voiceRate: this.elements.voiceRate ? parseFloat(this.elements.voiceRate.value) || 1 : 1,
       smtpHost: this.elements.smtpHost.value.trim(),
       smtpPort: parseInt(this.elements.smtpPort.value) || 587,
       smtpUser: this.elements.smtpUser.value.trim(),

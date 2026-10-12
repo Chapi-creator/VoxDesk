@@ -136,16 +136,7 @@ const PATTERNS = [
     handler: () => { memory.set('vox_quiet', Date.now()); return 'Descanso. Háblame cuando quieras y vuelvo.' },
     priority: 10,
     msg: 'Modo silencio' },
-  { match: /^(despierta|ya puedes hablar|modo normal|vuelve)$/i,
-    handler: () => { memory.del('vox_quiet'); return 'Aquí estoy. ¿Qué hacemos?' },
-    priority: 10,
-    msg: 'Fin del silencio' },
-
-  { match: /^(modo silencio|no me hables|descansa|c[aá]llate un rato)$/i,
-    handler: () => { memory.set('vox_quiet', Date.now()); return 'Descanso. Háblame cuando quieras y vuelvo.' },
-    priority: 10,
-    msg: 'Modo silencio' },
-  { match: /^(despierta|ya puedes hablar|modo normal|vuelve)$/i,
+  { match: /^(despierta|ya puedes hablar|vuelve)$/i,
     handler: () => { memory.del('vox_quiet'); return 'Aquí estoy. ¿Qué hacemos?' },
     priority: 10,
     msg: 'Fin del silencio' },
@@ -483,6 +474,17 @@ const PATTERNS = [
     msg: 'Ejecutando diagnóstico' },
 
   // --- MACRO CONTROL ---
+  { match: /modo\s+(trabajo|juego|estudio|normal)/i,
+    handler: (m) => {
+      const profiles = require('./profiles')
+      const p = profiles.get(m[1])
+      if (!p) return `Modos: ${profiles.list().join(', ')}`
+      try { memory.del('vox_quiet') } catch {}
+      return { message: p.say, _macro: p.steps }
+    },
+    priority: 10,
+    ex: ['modo trabajo', 'modo juego', 'modo normal'],
+    msg: (m) => `Activando modo ${m[1]}` },
   { match: /graba\s+(macro|una\s+macro)/i,
     handler: () => { memory.startRecording(); return 'Grabando macro. Di comandos y luego "guarda macro como [nombre]"' },
     msg: 'Grabando macro' },

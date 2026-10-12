@@ -25,6 +25,15 @@ function vendorBase() {
   return path.join(__dirname, '..', '..', 'vendor')
 }
 
+// Velocidad 0.5..2 (1 = normal). SAPI usa Rate -10..10, Piper length_scale.
+function voiceRate() {
+  try {
+    const r = parseFloat(config.load().voiceRate)
+    if (r >= 0.5 && r <= 2) return r
+  } catch {}
+  return 1
+}
+
 // Qué motor usar. Solo lee config + disco → testeable.
 function getEngine(voicePref) {
   const pref = voicePref || config.load().voice || 'mexicana'
@@ -51,7 +60,7 @@ function piperSpeak(text, eng, tok) {
   return new Promise((resolve) => {
     const msg = text.replace(/['"]/g, '').substring(0, 2000)
     const wav = path.join(os.tmpdir(), `_ai_vox_${process.pid}_${++_ttsSuffix}.wav`)
-    _gen = execFile(eng.exe, ['--model', eng.model, '--output_file', wav], { timeout: 60000, windowsHide: true }, (err) => {
+    _gen = execFile(eng.exe, ['--model', eng.model, '--length_scale', String(voiceRate()), '--output_file', wav], { timeout: 60000, windowsHide: true }, (err) => {
       _gen = null
       // Si otro speak tomó el turno, callar sin duplicar (ni fallback).
       if (tok !== _speakToken) {
@@ -90,10 +99,12 @@ function piperSpeak(text, eng, tok) {
 function sapiSpeak(text) {
   return new Promise((resolve) => {
     const msg = escapeSingle(text.replace(/['"]/g, '').substring(0, 2000))
+    const rate = Math.round((voiceRate() - 1) * 10)
     const ps = `try {
   $v = New-Object -ComObject SAPI.SpVoice -ErrorAction Stop
   $es = @($v.GetVoices() | Where-Object { $_.GetAttribute('Language') -match '0A$' })[0]
   if ($es) { $v.Voice = $es }
+  $v.Rate = ${rate}
   $v.Speak('${msg}')
 } catch {
   try {

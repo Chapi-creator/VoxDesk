@@ -129,11 +129,11 @@ function listMacros() {
 
 let _reminderId = Date.now()
 
-function saveReminder(message, timestamp) {
+function saveReminder(message, timestamp, repeatMs) {
   const d = load()
   if (!d.reminders) d.reminders = []
   const id = ++_reminderId
-  d.reminders.push({ id, message, timestamp })
+  d.reminders.push({ id, message, timestamp, repeatMs: repeatMs || 0 })
   save(d)
   return id
 }
