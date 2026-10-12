@@ -492,8 +492,10 @@ ipcMain.handle('voices:remove', (_event, file) => {
 
 ipcMain.handle('models:status', () => {
   try {
-    const d = require('path').join(config.modelsDir(), 'vosk-model-es-0.42', 'am', 'final.mdl')
-    return { largeDownloaded: require('fs').existsSync(d) }
+    const base = require('path').join(config.modelsDir(), 'vosk-model-es-0.42')
+    const need = ['am/final.mdl', 'graph/HCLr.fst', 'graph/Gr.fst'].map(f => require('path').join(base, ...f.split('/')))
+    const ok = need.every(f => { try { return require('fs').statSync(f).size > 1024 } catch { return false } })
+    return { largeDownloaded: ok }
   } catch {
     return { largeDownloaded: false }
   }

@@ -21,7 +21,8 @@ function buildSystemMessages(sp) {
 }
 
 // Generic OpenAI-compatible provider factory (one shared implementation)
-function mkOpenAI(name, baseUrl, defaultModel) {
+// extraBody se mezcla al JSON (p.ej. DeepSeek thinking off).
+function mkOpenAI(name, baseUrl, defaultModel, extraBody) {
   return {
     name, baseUrl, defaultModel,
     buildRequest(apiKey, model, userMessage, history) {
@@ -37,7 +38,7 @@ function mkOpenAI(name, baseUrl, defaultModel) {
         options: {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-          body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature })
+          body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature, ...(extraBody || {}) })
         }
       }
     },
@@ -79,7 +80,7 @@ const PROVIDERS = {
   claude: {
     name: 'Claude (Anthropic)',
     baseUrl: 'https://api.anthropic.com/v1',
-    defaultModel: 'claude-sonnet-4-20250514',
+    defaultModel: 'claude-sonnet-5',
     buildRequest(apiKey, model, userMessage, history) {
       const { maxTokens, temperature, systemPrompt } = getCfg()
       const messages = [
@@ -105,17 +106,18 @@ const PROVIDERS = {
   // All OpenAI-compatible providers share the same implementation via mkOpenAI
   openai: mkOpenAI('OpenAI', 'https://api.openai.com/v1', 'gpt-4o-mini'),
   groq: mkOpenAI('Groq', 'https://api.groq.com/openai/v1', 'llama-3.3-70b-versatile'),
-  deepseek: mkOpenAI('DeepSeek', 'https://api.deepseek.com/v1', 'deepseek-chat'),
+  deepseek: mkOpenAI('DeepSeek', 'https://api.deepseek.com/v1', 'deepseek-v4-flash', { thinking: { type: 'disabled' } }),
   together: mkOpenAI('Together AI', 'https://api.together.xyz/v1', 'mistralai/Mixtral-8x7B-Instruct-v0.1'),
   openrouter: mkOpenAI('OpenRouter', 'https://openrouter.ai/api/v1', 'openai/gpt-4o-mini'),
   mistral: mkOpenAI('Mistral AI', 'https://api.mistral.ai/v1', 'mistral-large-latest'),
   perplexity: mkOpenAI('Perplexity', 'https://api.perplexity.ai', 'sonar-pro'),
-  xai: mkOpenAI('xAI (Grok)', 'https://api.x.ai/v1', 'grok-2-latest'),
+  xai: mkOpenAI('xAI (Grok)', 'https://api.x.ai/v1', 'grok-4.5'),
   cohere: mkOpenAI('Cohere', 'https://api.cohere.com/v1', 'command-r-plus'),
-  kimi: mkOpenAI('Kimi (Moonshot)', 'https://api.moonshot.cn/v1', 'moonshot-v1-8k'),
-  glm: mkOpenAI('GLM (Zhipu)', 'https://open.bigmodel.cn/api/paas/v4', 'glm-4-plus'),
+  kimi: mkOpenAI('Kimi (Moonshot)', 'https://api.moonshot.cn/v1', 'kimi-k2.5'),
+  glm: mkOpenAI('GLM (Zhipu)', 'https://open.bigmodel.cn/api/paas/v4', 'glm-4.6'),
   // Generic custom URL — user sets apiUrl + model manually
   'openai-custom': mkOpenAI('OpenAI Compatible (Custom URL)', '', ''),
+  lmstudio: mkOpenAI('LM Studio (local)', 'http://127.0.0.1:1234/v1', 'local-model'),
   local: {
     name: 'Local (Ollama)',
     baseUrl: 'http://127.0.0.1:11434/v1',
@@ -153,6 +155,7 @@ function validateKey(provider, key, apiUrl) {
   if (!key || typeof key !== 'string') return 'API key requerida'
   if (provider === 'gemini' && !key.startsWith('AIza')) return 'Gemini key debe empezar con "AIza"'
   if (provider === 'claude' && !key.startsWith('sk-ant-')) return 'Claude key debe empezar con "sk-ant-"'
+  if (provider === 'xai' && !key.startsWith('xai-')) return 'xAI key debe empezar con "xai-"'
   if (key.length < 8) return 'Key debe tener al menos 8 caracteres'
   return null
 }
@@ -183,31 +186,29 @@ function ensureHistory() {
 
 const KNOWN_MODELS = {
   gemini: [
+    { name: 'gemini-3.8-flash', displayName: 'Gemini 3.8 Flash' },
+    { name: 'gemini-3.5-flash', displayName: 'Gemini 3.5 Flash' },
+    { name: 'gemini-3.1-flash-lite', displayName: 'Gemini 3.1 Flash-Lite' },
     { name: 'gemini-flash-latest', displayName: 'Gemini Flash (Latest)' },
-    { name: 'gemini-flash-lite-latest', displayName: 'Gemini Flash Lite (Latest)' },
-    { name: 'gemini-pro-latest', displayName: 'Gemini Pro (Latest)' },
   ],
   claude: [
-    { name: 'claude-sonnet-4-20250514', displayName: 'Claude Sonnet 4' },
-    { name: 'claude-sonnet-4-20250514-lite', displayName: 'Claude Sonnet 4 Lite' },
-    { name: 'claude-3-5-haiku-20241022', displayName: 'Claude 3.5 Haiku' },
+    { name: 'claude-sonnet-5', displayName: 'Claude Sonnet 5' },
+    { name: 'claude-haiku-4-5', displayName: 'Claude Haiku 4.5' },
+    { name: 'claude-opus-4-8', displayName: 'Claude Opus 4.8' },
   ],
   openai: [
+    { name: 'gpt-5.6-luna', displayName: 'GPT-5.6 Luna' },
     { name: 'gpt-4o-mini', displayName: 'GPT-4o Mini' },
-    { name: 'gpt-4o', displayName: 'GPT-4o' },
-    { name: 'gpt-4.1', displayName: 'GPT-4.1' },
-    { name: 'o3-mini', displayName: 'o3 Mini' },
-    { name: 'gpt-3.5-turbo', displayName: 'GPT-3.5 Turbo' },
+    { name: 'gpt-4.1-mini', displayName: 'GPT-4.1 Mini' },
   ],
   groq: [
+    { name: 'llama-3.1-8b-instant', displayName: 'Llama 3.1 8B (rápido)' },
     { name: 'llama-3.3-70b-versatile', displayName: 'Llama 3.3 70B' },
-    { name: 'llama-3.1-8b-instant', displayName: 'Llama 3.1 8B' },
     { name: 'mixtral-8x7b-32768', displayName: 'Mixtral 8x7B' },
-    { name: 'deepseek-r1-distill-llama-70b', displayName: 'DeepSeek R1 70B' },
   ],
   deepseek: [
-    { name: 'deepseek-chat', displayName: 'DeepSeek V3' },
-    { name: 'deepseek-reasoner', displayName: 'DeepSeek R1' },
+    { name: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash' },
+    { name: 'deepseek-reasoner', displayName: 'DeepSeek Reasoner' },
   ],
   together: [
     { name: 'mistralai/Mixtral-8x7B-Instruct-v0.1', displayName: 'Mixtral 8x7B' },
@@ -216,10 +217,9 @@ const KNOWN_MODELS = {
   ],
   openrouter: [
     { name: 'openai/gpt-4o-mini', displayName: 'GPT-4o Mini' },
-    { name: 'anthropic/claude-sonnet-4', displayName: 'Claude Sonnet 4' },
-    { name: 'google/gemini-flash-latest', displayName: 'Gemini Flash' },
+    { name: 'anthropic/claude-sonnet-5', displayName: 'Claude Sonnet 5' },
+    { name: 'google/gemini-3.5-flash', displayName: 'Gemini 3.5 Flash' },
     { name: 'meta-llama/llama-3.3-70b-instruct', displayName: 'Llama 3.3 70B' },
-    { name: 'deepseek/deepseek-chat', displayName: 'DeepSeek V3' },
   ],
   mistral: [
     { name: 'mistral-large-latest', displayName: 'Mistral Large' },
@@ -231,21 +231,21 @@ const KNOWN_MODELS = {
     { name: 'sonar', displayName: 'Sonar' },
   ],
   xai: [
-    { name: 'grok-2-latest', displayName: 'Grok 2' },
-    { name: 'grok-beta', displayName: 'Grok Beta' },
+    { name: 'grok-4.5', displayName: 'Grok 4.5' },
+    { name: 'grok-4.1-fast-reasoning', displayName: 'Grok 4.1 Fast' },
   ],
   cohere: [
     { name: 'command-r-plus', displayName: 'Command R+' },
     { name: 'command-r', displayName: 'Command R' },
   ],
   kimi: [
+    { name: 'kimi-k2.5', displayName: 'Kimi K2.5' },
     { name: 'moonshot-v1-8k', displayName: 'Moonshot v1 8K' },
-    { name: 'moonshot-v1-32k', displayName: 'Moonshot v1 32K' },
     { name: 'moonshot-v1-128k', displayName: 'Moonshot v1 128K' },
   ],
   glm: [
+    { name: 'glm-4.6', displayName: 'GLM-4.6' },
     { name: 'glm-4-plus', displayName: 'GLM-4 Plus' },
-    { name: 'glm-4-air', displayName: 'GLM-4 Air' },
     { name: 'glm-4-flash', displayName: 'GLM-4 Flash' },
   ],
   'openai-custom': [
@@ -273,6 +273,21 @@ async function listModels(apiKey, providerName) {
     } catch {}
     return KNOWN_MODELS.local
   }
+  // Servidores OpenAI-compatibles (LM Studio, custom con URL): lista viva.
+  if (providerName === 'lmstudio' || providerName === 'openai-custom') {
+    try {
+      const cfg = config.load()
+      const base = (providerName === 'lmstudio' ? 'http://127.0.0.1:1234/v1' : '') || cfg.apiUrl || ''
+      if (base) {
+        const res = await fetch(`${base.replace(/\/$/, '')}/models`)
+        const data = await res.json()
+        if (res.ok && Array.isArray(data.data) && data.data.length) {
+          return data.data.map(m => ({ name: m.id, displayName: m.id })).slice(0, 30)
+        }
+      }
+    } catch {}
+    if (providerName === 'lmstudio') return [{ name: 'local-model', displayName: 'Modelo cargado en LM Studio' }]
+  }
   if (!KNOWN_MODELS[providerName]) return []
   if (!apiKey) return []
   return KNOWN_MODELS[providerName]
@@ -282,12 +297,15 @@ async function ask(prompt) {
   ensureHistory()
   const cfg = config.load()
   const providerName = cfg.provider || 'gemini'
-  if (providerName !== 'local' && !cfg.apiKey) return ''
-  if (!PROVIDERS[providerName]) return `Proveedor "${providerName}" no soportado. Usa: ${Object.keys(PROVIDERS).join(', ')}`
-
   const provider = PROVIDERS[providerName]
+  if (!provider) return `Proveedor "${providerName}" no soportado. Usa: ${Object.keys(PROVIDERS).join(', ')}`
+  // Sin key solo vale en local o URLs privadas (Ollama, LM Studio, llama.cpp).
+  const base = (providerName === 'local' ? 'http://127.0.0.1:11434/v1' : null)
+    || cfg.apiUrl || provider.baseUrl || ''
+  if (providerName !== 'local' && !cfg.apiKey && !isPrivateUrl(base)) return ''
+
   const model = cfg.model || provider.defaultModel
-  const apiKey = providerName === 'local' ? '' : cfg.apiKey
+  const apiKey = cfg.apiKey || ''
   const { url, options } = provider.buildRequest(apiKey, model, prompt, conversationHistory)
 
   try {

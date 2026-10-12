@@ -720,6 +720,80 @@ test('wakeArgs arma flags', () => {
   )
 })
 
+console.log('\nproveedores (auditoría, fetch mock)')
+const llm = require('../src/main/llm')
+
+function mockFetch(fn) {
+  const orig = global.fetch
+  global.fetch = fn
+  return () => { global.fetch = orig }
+}
+
+await atest('gemini ask devuelve texto', async () => {
+  const config = require('../src/main/config')
+  config.save({ provider: 'gemini', model: 'gemini-3.5-flash', apiKey: 'AIza123456789' })
+  const restore = mockFetch(async () => ({
+    ok: true,
+    json: async () => ({ candidates: [{ content: { parts: [{ text: 'hola' }] } }] }),
+  }))
+  try {
+    const r = await llm.ask('hola')
+    assert.equal(r, 'hola')
+  } finally { restore() }
+})
+
+await atest('ask sin key en público no llama red', async () => {
+  const config = require('../src/main/config')
+  config.save({ provider: 'gemini', model: 'gemini-3.5-flash', apiKey: '' })
+  let called = 0
+  const restore = mockFetch(async () => { called++; return { ok: true, json: async () => ({}) } })
+  try {
+    assert.equal(await llm.ask('hola'), '')
+    assert.equal(called, 0)
+  } finally { restore() }
+})
+
+await atest('local ask sin key sí llama', async () => {
+  const config = require('../src/main/config')
+  config.save({ provider: 'local', model: 'qwen2.5:1.5b', apiKey: '' })
+  let url = ''
+  const restore = mockFetch(async (u) => {
+    url = u
+    return { ok: true, json: async () => ({ choices: [{ message: { content: 'ok' } }] }) }
+  })
+  try {
+    assert.equal(await llm.ask('hola'), 'ok')
+    assert.ok(url.includes('127.0.0.1:11434'))
+  } finally { restore() }
+})
+
+await atest('lmstudio lista modelos vivos', async () => {
+  const restore = mockFetch(async () => ({
+    ok: true, json: async () => ({ data: [{ id: 'qwen3-4b' }, { id: 'mistral-7b' }] }),
+  }))
+  try {
+    const ms = await llm.listModels('', 'lmstudio')
+    assert.equal(ms.length, 2)
+    assert.equal(ms[0].name, 'qwen3-4b')
+  } finally { restore() }
+})
+
+test('deepseek manda thinking desactivado', () => {
+  const config = require('../src/main/config')
+  config.save({ provider: 'deepseek', model: 'deepseek-v4-flash', apiKey: 'sk-test12345678' })
+  const { options } = llm.PROVIDERS.deepseek.buildRequest('sk-test12345678', 'deepseek-v4-flash', 'hola', [])
+  const body = JSON.parse(options.body)
+  assert.deepEqual(body.thinking, { type: 'disabled' })
+  assert.equal(body.model, 'deepseek-v4-flash')
+})
+
+test('validateKey xai + local sin key', () => {
+  assert.ok(llm.validateKey('xai', 'mal'))
+  assert.equal(llm.validateKey('xai', 'xai-12345678'), null)
+  assert.equal(llm.validateKey('local', ''), null)
+  assert.equal(llm.validateKey('lmstudio', ''), null)
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

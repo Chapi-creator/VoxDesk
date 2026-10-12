@@ -246,9 +246,14 @@ class SettingsManager {
     if (!this.elements.modelStatus) return
     try {
       const st = await window.api.modelsStatus()
-      this.elements.modelStatus.textContent = st.largeDownloaded
-        ? 'Modelo preciso descargado. Elíguelo arriba.'
-        : 'Modelo preciso no descargado (1.4 GB).'
+      if (st.largeDownloaded) {
+        this.elements.modelStatus.textContent = '✓ Modelo preciso instalado. Elíguelo arriba.'
+        if (this.elements.modelDlBtn) this.elements.modelDlBtn.style.display = 'none'
+        if (this.elements.modelMeter) this.elements.modelMeter.style.display = 'none'
+      } else {
+        this.elements.modelStatus.textContent = 'Modelo preciso no descargado (1.4 GB).'
+        if (this.elements.modelDlBtn) this.elements.modelDlBtn.style.display = ''
+      }
     } catch {
       this.elements.modelStatus.textContent = ''
     }
