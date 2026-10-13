@@ -85,6 +85,13 @@
           <button class="btn-start" id="btn-ai-key" style="flex:1">Guía: key gratis</button>
           <button class="btn-start" id="btn-ai-local" style="flex:1">Usar Ollama local</button>
         </div>
+        <div class="status-msg" id="settings-key-guide" style="display:none;text-align:left">
+          1. Entra a Google AI Studio (se abre TU cuenta, no la de nadie más).<br>
+          2. Pulsa <b>Get API key</b> → <b>Create API key</b>.<br>
+          3. Copia la key (empieza con AIza…).<br>
+          4. Elige proveedor <b>Gemini</b> arriba, pégala en API Key y pulsa <b>Guardar</b>.<br>
+          5. Es gratis dentro de su cuota; si falla, revisa que la key esté bien copiada.
+        </div>
         <div class="status-msg" id="settings-ollama-status"></div>
         <div style="display:flex;gap:6px;margin-bottom:8px">
           <button class="btn-start" id="btn-ollama-dl" style="flex:1">Descargar Ollama</button>
@@ -180,6 +187,7 @@
         <div class="status-msg" id="settings-tts-status"></div>
         <div id="settings-custom-voices"></div>
         <input type="text" id="settings-voice-url" placeholder="Pega link .onnx de HuggingFace" spellcheck="false" style="width:100%;margin-top:4px" />
+        <div class="status-msg" style="text-align:left">Tus voces: 1) en huggingface.co busca una voz Piper (.onnx), 2) abre su página y copia el link del archivo .onnx (botón de descarga/copiar), 3) pégalo aquí y Añadir. Solo acepta huggingface.co.</div>
         <button class="btn-start" id="btn-voice-add" style="margin-top:4px">Añadir mi voz</button>
         <div class="status-msg" id="settings-voice-status"></div>
         <label>Velocidad de voz (0.5-2)</label>

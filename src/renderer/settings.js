@@ -110,7 +110,11 @@ class SettingsManager {
         this.elements.ttsStatus.textContent = 'No se pudo diagnosticar.'
       }
     })
-    if (this.elements.aiKeyBtn) this.elements.aiKeyBtn.addEventListener('click', () => window.api.openUrl('https://aistudio.google.com/'))
+    if (this.elements.aiKeyBtn) this.elements.aiKeyBtn.addEventListener('click', () => {
+      const g = document.getElementById('settings-key-guide')
+      if (g) g.style.display = g.style.display === 'none' ? '' : 'none'
+      window.api.openUrl('https://aistudio.google.com/apikey')
+    })
     if (this.elements.aiLocalBtn) this.elements.aiLocalBtn.addEventListener('click', () => {
       this.elements.provider.value = 'local'
       this._toggleUrlField()
