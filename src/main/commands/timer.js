@@ -72,18 +72,35 @@ function execute(text) {
     memory.removeReminder(r.id)
     return Promise.resolve({ success: true, message: `Recordatorio "${r.message}" cancelado.`, speak: true })
   }
+  const rep = parseRepeat(text)
+  // Fechas naturales ("mañana a las 8") van primero; si no hay, duración.
+  try {
+    const dates = require('../dates')
+    const f = dates.parseDate(text)
+    if (f && f.date > new Date()) {
+      const fmsg = text.replace(f.matched, '').replace(/recuerda|recuérdame|alarma|temporizador|por|en|el|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|mañana|hoy|pasado|a las/gi, '').trim() || 'Tiempo cumplido'
+      const fid = memory.saveReminder(fmsg, f.date.getTime(), rep ? rep.ms : 0)
+      scheduleById(fid, f.date.getTime() - Date.now())
+      const fwhen = dates.fmtDate(f.date)
+      return Promise.resolve({
+        success: true,
+        message: rep ? `Te avisaré "${fmsg}" ${fwhen} y luego ${rep.label}.` : `Recordatorio ${fwhen}: "${fmsg}"`,
+        speak: true,
+      })
+    }
+  } catch {}
   const dur = parseDuration(text)
   if (!dur || dur.ms < 1000 || dur.ms > 86400000)
     return Promise.resolve({ success: true, message: dur && dur.ms < 1000 ? 'Muy poco tiempo' : dur && dur.ms > 86400000 ? 'Máximo 24 horas' : 'No entendí el tiempo. Di: "alarma en 10 segundos"', speak: true })
 
-  const rep = parseRepeat(text)
-  const msg = text.replace(dur.match, '').replace(/recuerda|recuérdame|alarma|temporizador|por|en/gi, '').trim() || 'Tiempo cumplido'
-  const timestamp = Date.now() + dur.ms
+  let msg = text.replace(dur.match, '').replace(/recuerda|recuérdame|alarma|temporizador|por|en/gi, '').trim() || 'Tiempo cumplido'
+  let timestamp = Date.now() + dur.ms
+  let when = `en ${dur.amount} ${dur.unit}`
   const id = memory.saveReminder(msg, timestamp, rep ? rep.ms : 0)
-  scheduleById(id, dur.ms)
+  scheduleById(id, timestamp - Date.now())
   return Promise.resolve({
     success: true,
-    message: rep ? `Te avisaré "${msg}" en ${dur.amount} ${dur.unit} y luego ${rep.label}.` : `Recordatorio en ${dur.amount} ${dur.unit}: "${msg}"`,
+    message: rep ? `Te avisaré "${msg}" ${when} y luego ${rep.label}.` : `Recordatorio ${when}: "${msg}"`,
     speak: true,
   })
 }

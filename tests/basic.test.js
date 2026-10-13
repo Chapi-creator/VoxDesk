@@ -794,6 +794,48 @@ test('validateKey xai + local sin key', () => {
   assert.equal(llm.validateKey('lmstudio', ''), null)
 })
 
+console.log('\nfechas naturales')
+const dates = require('../src/main/dates')
+
+test('mañana a las 8', () => {
+  const now = new Date(2026, 9, 14, 10, 30)
+  const r = dates.parseDate('recuérdame llamar mañana a las 8', now)
+  assert.equal(r.date.getDate(), 15)
+  assert.equal(r.date.getHours(), 8)
+  assert.equal(r.date.getMinutes(), 0)
+})
+
+test('pasado mañana sin hora = 9:00', () => {
+  const now = new Date(2026, 9, 14, 10, 30)
+  const r = dates.parseDate('avísame pasado mañana', now)
+  assert.equal(r.date.getDate(), 16)
+  assert.equal(r.date.getHours(), 9)
+})
+
+test('en 3 días a las 7', () => {
+  const now = new Date(2026, 9, 14, 10, 30)
+  const r = dates.parseDate('recuérdame en 3 días a las 7', now)
+  assert.equal(r.date.getDate(), 17)
+  assert.equal(r.date.getHours(), 7)
+})
+
+test('el viernes es futuro', () => {
+  const now = new Date(2026, 9, 14, 10, 30)
+  const r = dates.parseDate('reunión el viernes a las 9', now)
+  assert.equal(r.date.getDay(), 5)
+  assert.ok(r.date > now)
+})
+
+test('hoy pasado usa mañana', () => {
+  const now = new Date(2026, 9, 14, 22, 0)
+  const r = dates.parseDate('alarma hoy a las 7', now)
+  assert.equal(r.date.getDate(), 15)
+})
+
+test('sin fecha devuelve null', () => {
+  assert.equal(dates.parseDate('abre chrome', new Date()), null)
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }
