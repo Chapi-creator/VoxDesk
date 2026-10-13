@@ -564,12 +564,11 @@ ipcMain.handle('voices:remove', (_event, file) => {
 
 ipcMain.handle('models:status', () => {
   try {
-    const base = require('path').join(config.modelsDir(), 'vosk-model-es-0.42')
-    const need = ['am/final.mdl', 'graph/HCLr.fst', 'graph/Gr.fst'].map(f => require('path').join(base, ...f.split('/')))
-    const ok = need.every(f => { try { return require('fs').statSync(f).size > 1024 } catch { return false } })
-    return { largeDownloaded: ok }
+    const mc = require('./src/main/modelcheck')
+    const r = mc.checkLargeModel(config.modelsDir())
+    return { largeDownloaded: r.ok, missing: r.missing, MB: Math.round(r.bytesPresent / 1048576) }
   } catch {
-    return { largeDownloaded: false }
+    return { largeDownloaded: false, missing: [], MB: 0 }
   }
 })
 
@@ -578,9 +577,17 @@ ipcMain.handle('models:download-large', async () => {
   const https = require('https')
   const fs = require('fs')
   const path = require('path')
+  const mc = require('./src/main/modelcheck')
   const dir = path.join(config.modelsDir(), 'vosk-model-es-0.42')
   const zip = path.join(require('os').tmpdir(), 'vosk-model-es-0.42.zip')
-  const send = (pct) => { if (mainWindow) mainWindow.webContents.send('models:progress', { pct }) }
+  const send = (pct, extra) => { if (mainWindow) mainWindow.webContents.send('models:progress', { pct, ...(extra || {}) }) }
+  const fail = (error) => {
+    try { fs.unlinkSync(zip) } catch {}
+    if (mainWindow) mainWindow.webContents.send('models:progress', { pct: 0, done: true, ok: false, error })
+    return false
+  }
+  // Limpieza primero: parciales corruptos fuera.
+  mc.wipeLargeModel(config.modelsDir())
   const get = (url, redirs = 0) => new Promise((resolve, reject) => {
     if (redirs > 5) return reject(new Error('redirects'))
     https.get(url, (res) => {
@@ -591,13 +598,14 @@ ipcMain.handle('models:download-large', async () => {
       }
       if (res.statusCode !== 200) { res.resume(); reject(new Error('HTTP ' + res.statusCode)); return }
       const total = parseInt(res.headers['content-length'] || '0', 10)
+      if (total && total < 1000000000) { res.resume(); reject(new Error('zip muy chico: ' + total)); return }
       let got = 0
       const out = fs.createWriteStream(zip)
       res.on('data', (c) => {
         got += c.length
         if (total) {
-          const pct = Math.floor((got / total) * 90)
-          if (pct !== get._last || pct % 5 === 0) { get._last = pct; send(pct) }
+          const pct = Math.min(89, Math.floor((got / total) * 89))
+          if (pct % 2 === 0) send(pct)
         }
       })
       res.pipe(out)
@@ -608,20 +616,24 @@ ipcMain.handle('models:download-large', async () => {
   try {
     send(1)
     await get('https://alphacephei.com/vosk/models/vosk-model-es-0.42.zip')
-    send(92)
+    send(90)
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
     await new Promise((resolve, reject) => {
       const { execFile } = require('child_process')
       execFile('powershell', ['-NoProfile', '-Command', `Expand-Archive -Path '${zip}' -DestinationPath '${path.join(config.modelsDir())}' -Force`], { timeout: 30 * 60000 }, (err) => err ? reject(err) : resolve())
     })
     try { fs.unlinkSync(zip) } catch {}
+    send(96)
+    const check = mc.checkLargeModel(config.modelsDir())
+    if (!check.ok) {
+      mc.wipeLargeModel(config.modelsDir())
+      return fail('incompleto tras extraer, faltan: ' + check.missing.join(', '))
+    }
     send(100)
     if (mainWindow) mainWindow.webContents.send('models:progress', { pct: 100, done: true, ok: true })
     return true
   } catch (e) {
-    try { fs.unlinkSync(zip) } catch {}
-    if (mainWindow) mainWindow.webContents.send('models:progress', { pct: 0, done: true, ok: false, error: e.message })
-    return false
+    return fail(e.message)
   }
 })
 

@@ -81,6 +81,7 @@ function apiStub(over = {}) {
     voicesList: async () => [],
     voicesAdd: async () => ({ name: 'x', file: 'x.onnx' }),
     voicesRemove: async () => [],
+    modelsStatus: async () => ({ largeDownloaded: true, missing: [], MB: 1400 }),
     remoteInfo: async () => ({ enabled: false, ip: '', port: 0, url: '', hasToken: false }),
     remoteQr: async () => null,
     remoteRevoke: async () => true,

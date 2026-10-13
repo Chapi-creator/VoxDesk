@@ -1057,6 +1057,42 @@ test('cola: encolar, listar, decidir, tope', () => {
   assert.equal(approvals.list().length, 0)
 })
 
+console.log('\nmodelcheck (integridad)')
+const modelcheck = require('../src/main/modelcheck')
+
+test('detecta modelo incompleto y lo limpia', () => {
+  const fs = require('fs')
+  const path = require('path')
+  const tmp = path.join(require('os').tmpdir(), 'vox-modelcheck-test')
+  const base = path.join(tmp, 'vosk-model-es-0.42', 'am')
+  fs.mkdirSync(base, { recursive: true })
+  const fd = fs.openSync(path.join(base, 'final.mdl'), 'w')
+  fs.ftruncateSync(fd, 60 * 1024 * 1024)
+  fs.closeSync(fd)
+  const r = modelcheck.checkLargeModel(tmp)
+  assert.equal(r.ok, false)
+  assert.ok(r.missing.some(m => m.includes('HCLr')))
+  assert.ok(modelcheck.wipeLargeModel(tmp))
+  assert.equal(fs.existsSync(path.join(tmp, 'vosk-model-es-0.42')), false)
+  fs.rmSync(tmp, { recursive: true, force: true })
+})
+
+test('modelo completo pasa', () => {
+  const fs = require('fs')
+  const path = require('path')
+  const tmp = path.join(require('os').tmpdir(), 'vox-modelcheck-test2')
+  for (const [d, f, sz] of [['am', 'final.mdl', 60], ['graph', 'HCLr.fst', 60], ['graph', 'Gr.fst', 120], ['conf', 'model.conf', 1]]) {
+    fs.mkdirSync(path.join(tmp, 'vosk-model-es-0.42', d), { recursive: true })
+    const fd = fs.openSync(path.join(tmp, 'vosk-model-es-0.42', d, f), 'w')
+    fs.ftruncateSync(fd, sz * 1024 * 1024)
+    fs.closeSync(fd)
+  }
+  const r = modelcheck.checkLargeModel(tmp)
+  assert.equal(r.ok, true)
+  assert.equal(r.missing.length, 0)
+  fs.rmSync(tmp, { recursive: true, force: true })
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

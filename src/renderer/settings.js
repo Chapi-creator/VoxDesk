@@ -280,12 +280,15 @@ class SettingsManager {
     try {
       const st = await window.api.modelsStatus()
       if (st.largeDownloaded) {
-        this.elements.modelStatus.textContent = '✓ Modelo preciso instalado. Elíguelo arriba.'
+        this.elements.modelStatus.textContent = `✓ Modelo preciso instalado (${st.MB || '?'} MB). Elíguelo arriba.`
         if (this.elements.modelDlBtn) this.elements.modelDlBtn.style.display = 'none'
         if (this.elements.modelMeter) this.elements.modelMeter.style.display = 'none'
+      } else if (st.missing && st.missing.length) {
+        this.elements.modelStatus.textContent = `Incompleto (${st.MB || 0} MB): faltan ${st.missing.join(', ')}. Reintenta.`
+        if (this.elements.modelDlBtn) { this.elements.modelDlBtn.style.display = ''; this.elements.modelDlBtn.textContent = 'Reintentar descarga' }
       } else {
         this.elements.modelStatus.textContent = 'Modelo preciso no descargado (1.4 GB).'
-        if (this.elements.modelDlBtn) this.elements.modelDlBtn.style.display = ''
+        if (this.elements.modelDlBtn) { this.elements.modelDlBtn.style.display = ''; this.elements.modelDlBtn.textContent = 'Descargar preciso' }
       }
     } catch {
       this.elements.modelStatus.textContent = ''
