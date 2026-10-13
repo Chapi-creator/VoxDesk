@@ -1077,6 +1077,45 @@ test('detecta modelo incompleto y lo limpia', () => {
   fs.rmSync(tmp, { recursive: true, force: true })
 })
 
+test('zip sin firma final se rechaza aunque pese 1GB', () => {
+  const fs = require('fs')
+  const path = require('path')
+  const tmp = path.join(require('os').tmpdir(), 'vox-zipcheck-test')
+  fs.mkdirSync(tmp, { recursive: true })
+  const z = path.join(tmp, 'm.zip')
+  const fd = fs.openSync(z, 'w')
+  fs.ftruncateSync(fd, 1100 * 1024 * 1024)
+  fs.closeSync(fd)
+  assert.equal(modelcheck.zipLooksComplete(z), false)
+  fs.rmSync(tmp, { recursive: true, force: true })
+})
+
+test('zip con firma EOCD al final pasa', () => {
+  const fs = require('fs')
+  const path = require('path')
+  const tmp = path.join(require('os').tmpdir(), 'vox-zipcheck-test2')
+  fs.mkdirSync(tmp, { recursive: true })
+  const z = path.join(tmp, 'm.zip')
+  const fd = fs.openSync(z, 'w')
+  const size = 1100 * 1024 * 1024
+  fs.ftruncateSync(fd, size)
+  fs.writeSync(fd, Buffer.from([0x50, 0x4b, 0x05, 0x06, ...new Array(18).fill(0)]), 0, 22, size - 22)
+  fs.closeSync(fd)
+  assert.equal(modelcheck.zipLooksComplete(z), true)
+  fs.rmSync(tmp, { recursive: true, force: true })
+})
+
+test('zip chico con firma se rechaza', () => {
+  const fs = require('fs')
+  const path = require('path')
+  const tmp = path.join(require('os').tmpdir(), 'vox-zipcheck-test3')
+  fs.mkdirSync(tmp, { recursive: true })
+  const z = path.join(tmp, 'm.zip')
+  fs.writeFileSync(z, Buffer.from([0x50, 0x4b, 0x05, 0x06]))
+  assert.equal(modelcheck.zipLooksComplete(z), false)
+  fs.rmSync(tmp, { recursive: true, force: true })
+})
+
 test('modelo completo pasa', () => {
   const fs = require('fs')
   const path = require('path')

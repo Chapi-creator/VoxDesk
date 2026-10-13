@@ -155,16 +155,38 @@ class SettingsManager {
       } catch {}
     })
     if (this.elements.modelDlBtn) this.elements.modelDlBtn.addEventListener('click', async () => {
+      this.elements.modelDlBtn.disabled = true
       this.elements.modelMeter.style.display = ''
       this.elements.modelFill.style.width = '0%'
       this.elements.modelStatus.textContent = 'Descargando 2.3 GB… no cierres.'
       await window.api.modelsDownloadLarge()
     })
     if (window.api.onModelsProgress) window.api.onModelsProgress((r) => {
+      if (r.busy) {
+        if (this.elements.modelStatus) this.elements.modelStatus.textContent = 'Ya hay una descarga en curso.'
+        return
+      }
       if (this.elements.modelFill) this.elements.modelFill.style.width = (r.pct || 0) + '%'
+      if (r.phase === 'resume' && this.elements.modelStatus) {
+        this.elements.modelStatus.textContent = `Reanudando desde ${r.MB || 0} MB…`
+      } else if (r.phase === 'download' && this.elements.modelStatus && r.totalMB) {
+        this.elements.modelStatus.textContent = `Descargando… ${r.MB}/${r.totalMB} MB (si se corta, reanuda).`
+      } else if (r.phase === 'retry' && this.elements.modelStatus) {
+        this.elements.modelStatus.textContent = `Corte de red, reintentando (${r.attempt}/3)…`
+      } else if (r.phase === 'extract' && this.elements.modelStatus) {
+        this.elements.modelStatus.textContent = 'Extrayendo, tarda ~10 min… no cierres.'
+      } else if (r.phase === 'verify' && this.elements.modelStatus) {
+        this.elements.modelStatus.textContent = 'Verificando…'
+      }
       if (r.done) {
         if (this.elements.modelMeter) this.elements.modelMeter.style.display = 'none'
-        this._refreshModelStatus()
+        if (this.elements.modelDlBtn) this.elements.modelDlBtn.disabled = false
+        if (r.ok) {
+          this._refreshModelStatus()
+        } else if (this.elements.modelStatus) {
+          this.elements.modelStatus.textContent = 'No se pudo: ' + (r.error || 'error desconocido')
+          if (this.elements.modelDlBtn) { this.elements.modelDlBtn.style.display = ''; this.elements.modelDlBtn.textContent = 'Reintentar descarga' }
+        }
       }
     })
     if (this.elements.voiceAddBtn) this.elements.voiceAddBtn.addEventListener('click', async () => {

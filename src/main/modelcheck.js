@@ -30,4 +30,19 @@ function wipeLargeModel(modelsDir) {
   return !fs.existsSync(base)
 }
 
-module.exports = { checkLargeModel, wipeLargeModel, REQUIRED }
+// El zip oficial pesa >1GB. Un zip trunco no tiene firma end-of-central-directory
+// (PK\x05\x06) en sus últimos 66KB. Detectarlo evita extraer basura tras 20 min.
+function zipLooksComplete(zipPath) {
+  try {
+    const st = fs.statSync(zipPath)
+    if (st.size < 1000000000) return false
+    const tail = Math.min(st.size, 70000)
+    const fd = fs.openSync(zipPath, 'r')
+    const buf = Buffer.alloc(tail)
+    fs.readSync(fd, buf, 0, tail, st.size - tail)
+    fs.closeSync(fd)
+    return buf.includes(Buffer.from([0x50, 0x4b, 0x05, 0x06]))
+  } catch { return false }
+}
+
+module.exports = { checkLargeModel, wipeLargeModel, zipLooksComplete, REQUIRED }
