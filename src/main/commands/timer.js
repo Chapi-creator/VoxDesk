@@ -55,6 +55,24 @@ function fmtRepeat(ms) {
 
 function execute(text) {
   const lower = String(text || '').toLowerCase().trim()
+  if (/^(qu[eé]|cu[aá]les|lista|muestra).*(rutinas?)/.test(lower)) {
+    const routines = require('../routines')
+    const all = routines.all().slice().sort((a, b) => a.time.localeCompare(b.time))
+    if (!all.length) return Promise.resolve({ success: true, message: 'No tienes rutinas. Di: "todos los días a las 8 dime el clima".', speak: true })
+    return Promise.resolve({
+      success: true,
+      message: all.map((r, i) => `${i + 1}. ${r.time}: ${r.action}`).join('. '),
+      speak: true,
+    })
+  }
+  let mr = /^(cancela|borra|elimina)(\s+la)?\s+rutina\s+(\d+)$/.exec(lower)
+  if (mr) {
+    const routines = require('../routines')
+    const all = routines.all().slice().sort((a, b) => a.time.localeCompare(b.time))
+    const r = all[parseInt(mr[3]) - 1]
+    if (!r || !routines.remove(r.id)) return Promise.resolve({ success: false, message: 'No hay esa rutina.', speak: true })
+    return Promise.resolve({ success: true, message: `Rutina de las ${r.time} cancelada.`, speak: true })
+  }
   if (/^(qu[eé]|cu[aá]les|lista|muestra).*(recordatorios?|alarmas?|eventos?)/.test(lower)) {
     const all = memory.listReminders().sort((a, b) => a.timestamp - b.timestamp)
     if (!all.length) return Promise.resolve({ success: true, message: 'No tienes recordatorios.', speak: true })
@@ -73,6 +91,15 @@ function execute(text) {
     return Promise.resolve({ success: true, message: `Recordatorio "${r.message}" cancelado.`, speak: true })
   }
   const rep = parseRepeat(text)
+  // Rutinas diarias ("todos los días a las 8 dime el clima").
+  try {
+    const routines = require('../routines')
+    const r = routines.parse(text)
+    if (r) {
+      const id = routines.add(r.time, r.action)
+      return Promise.resolve({ success: true, message: `Rutina ${id}: todos los días a las ${r.time}, "${r.action}".`, speak: true })
+    }
+  } catch {}
   // Fechas naturales ("mañana a las 8") van primero; si no hay, duración.
   try {
     const dates = require('../dates')

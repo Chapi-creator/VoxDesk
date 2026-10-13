@@ -836,6 +836,44 @@ test('sin fecha devuelve null', () => {
   assert.equal(dates.parseDate('abre chrome', new Date()), null)
 })
 
+console.log('\nrutinas (3)')
+const routines = require('../src/main/routines')
+
+test('parse: todos los días a las 8', () => {
+  const r = routines.parse('todos los días a las 8 dime el clima')
+  assert.equal(r.time, '08:00')
+  assert.ok(r.action.includes('clima'))
+})
+
+test('parse: cada día 9pm', () => {
+  const r = routines.parse('recuérdame cada día 9pm tomar agua')
+  assert.equal(r.time, '21:00')
+  assert.ok(r.action.length > 0)
+})
+
+test('parse: sin hora no vale', () => {
+  assert.equal(routines.parse('todos los días dime hola'), null)
+  assert.equal(routines.parse('abre chrome'), null)
+})
+
+test('dueRoutines: vencidas de hoy sin correr', () => {
+  const now = new Date(2026, 9, 14, 10, 30)
+  const list = [
+    { id: 1, time: '08:00', action: 'a', lastRun: '' },
+    { id: 2, time: '12:00', action: 'b', lastRun: '' },
+    { id: 3, time: '08:00', action: 'c', lastRun: '2026-10-14' },
+  ]
+  const due = routines.dueRoutines(list, now)
+  assert.deepEqual(due.map(r => r.id), [1])
+})
+
+test('add/remove rutinas', () => {
+  const id = routines.add('07:30', 'prueba x')
+  assert.ok(routines.all().some(r => r.id === id))
+  assert.equal(routines.remove(id), true)
+  assert.equal(routines.remove(999999), false)
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

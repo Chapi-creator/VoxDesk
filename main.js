@@ -716,6 +716,14 @@ async function lifeTick() {
       if (q) memory.del('vox_quiet')
     } catch {}
     _tickN++
+    // Rutinas diarias programadas (respetan silencio).
+    try {
+      const routines = require('./src/main/routines')
+      for (const r of routines.dueRoutines(routines.all(), new Date())) {
+        routines.markRun(r.id, new Date())
+        handleAndTrack(r.action).catch(() => {})
+      }
+    } catch {}
     const now = Date.now()
     if (_tickN % 10 === 0 || _lastBattery === null) {
       try {

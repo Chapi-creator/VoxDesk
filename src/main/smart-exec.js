@@ -226,6 +226,14 @@ const PATTERNS = [
     msg: (m) => `Calculando ${m[2]}` },
 
   // --- TIMER / STOPWATCH ---
+  { match: /todos los d[ií]as|cada d[ií]a|diariamente/i,
+    handler: async (m, text) => {
+      const r = await require('./commands/timer').execute(text || m.input)
+      return typeof r === 'string' ? r : r
+    },
+    priority: 10,
+    ex: ['todos los días a las 8 dime el clima', 'recuérdame todos los días a las 9 tomar agua'],
+    msg: 'Programando rutina' },
   { match: /temporizador|cronometro|cuenta\s+(atr[aá]s|regresiva)\s+(\d+)\s*(minutos?|segundos?|horas?)?/i,
     run: (m) => {
       const num = parseInt(m[2])
