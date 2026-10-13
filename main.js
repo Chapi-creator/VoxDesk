@@ -755,6 +755,7 @@ async function syncRemoteServer() {
     if (_remoteServer) return
     const { server, port } = await remoteApi.startRemote({
       port: cfg.remotePort || 4567,
+      remoteDir: path.join(__dirname, 'src', 'remote'),
       getToken: () => { try { return config.load().remoteToken || '' } catch { return '' } },
       handlers: {
         execute: async (text) => {

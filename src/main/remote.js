@@ -3,6 +3,8 @@
 const http = require('http')
 const crypto = require('crypto')
 const os = require('os')
+const fs = require('fs')
+const path = require('path')
 
 function newToken() {
   return crypto.randomBytes(32).toString('hex')
@@ -59,10 +61,24 @@ function send(res, code, obj) {
 
 // handlers: { execute(text)->obj, status()->obj, timers()->arr, speak(text)->bool }
 // getToken: () => string vigente (para rotar sin reiniciar).
-async function startRemote({ port, getToken, handlers }) {
+// remoteDir: carpeta con la PWA (se sirve sin auth; la API sí la exige).
+async function startRemote({ port, getToken, handlers, remoteDir }) {
+  const MIME = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png' }
   const server = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url || '/', 'http://x')
+      if (remoteDir && req.method === 'GET' && (url.pathname === '/remote' || url.pathname === '/remote/' || url.pathname.startsWith('/remote/'))) {
+        let rel = url.pathname === '/remote' || url.pathname === '/remote/' ? 'index.html' : url.pathname.slice('/remote/'.length).split('?')[0]
+        if (rel.includes('..') || rel.includes('\\')) { res.writeHead(400); res.end(); return }
+        const full = path.join(remoteDir, rel)
+        if (!full.startsWith(remoteDir)) { res.writeHead(403); res.end(); return }
+        fs.readFile(full, (err, data) => {
+          if (err) { res.writeHead(404); res.end(); return }
+          res.writeHead(200, { 'Content-Type': MIME[path.extname(full)] || 'application/octet-stream' })
+          res.end(data)
+        })
+        return
+      }
       if (!url.pathname.startsWith('/api/')) { send(res, 404, { error: 'no' }); return }
       if (!checkToken(parseBearer(req), getToken())) { send(res, 401, { error: 'token' }); return }
       if (req.method === 'GET' && url.pathname === '/api/status') {

@@ -977,6 +977,67 @@ await atest('startRemote: 401 sin token, 200 con token, 404 resto', async () => 
   }
 })
 
+console.log('\nPWA cliente (R2)')
+const rclient = require('../src/remote/client')
+
+test('parseToken saca hex del hash', () => {
+  assert.equal(rclient.parseToken('http://1.2.3.4:4567/remote/#abc123'), 'abc123')
+  assert.equal(rclient.parseToken('http://x/remote/'), '')
+  assert.equal(rclient.parseToken('no url'), '')
+})
+
+test('apiCall mete Bearer y parsea', async () => {
+  let got = null
+  const fakeFetch = async (url, opts) => {
+    got = { url, opts }
+    return { ok: true, status: 200, json: async () => ({ ok: true }) }
+  }
+  const r = await rclient.apiCall(fakeFetch, 'http://1.2.3.4:4567/', 'tok', '/api/status')
+  assert.equal(r.ok, true)
+  assert.ok(got.url.endsWith('/api/status'))
+  assert.equal(got.opts.headers.Authorization, 'Bearer tok')
+})
+
+await atest('apiCall 401 lanza', async () => {
+  const fakeFetch = async () => ({ ok: false, status: 401, json: async () => ({}) })
+  let err = null
+  try { await rclient.apiCall(fakeFetch, 'http://x/', 'mal', '/api/status') } catch (e) { err = e }
+  assert.ok(err && /acceso/.test(err.message))
+})
+
+await atest('PWA servida sin auth, API con auth', async () => {
+  const http = require('http')
+  const path = require('path')
+  const { server, port } = await remoteApi.startRemote({
+    port: 45672,
+    remoteDir: path.join(__dirname, '..', 'src', 'remote'),
+    getToken: () => 's3cr3t',
+    handlers: { execute: async () => ({}), status: async () => ({}), timers: async () => [], speak: async () => true },
+  })
+  const get = (p, headers) => new Promise((resolve, reject) => {
+    http.get({ host: '127.0.0.1', port, path: p, headers: headers || {} }, (res) => {
+      let d = ''
+      res.on('data', (c) => { d += c })
+      res.on('end', () => resolve({ code: res.statusCode, type: res.headers['content-type'], body: d }))
+    }).on('error', reject)
+  })
+  try {
+    const idx = await get('/remote/')
+    assert.equal(idx.code, 200)
+    assert.ok(idx.type.includes('text/html'))
+    assert.ok(idx.body.includes('VoxDesk Remoto'))
+    const js = await get('/remote/client.js')
+    assert.equal(js.code, 200)
+    assert.ok(js.type.includes('javascript'))
+    const trav = await get('/remote/%2e%2e/package.json')
+    assert.ok([400, 403, 404].includes(trav.code))
+    const api = await get('/api/status')
+    assert.equal(api.code, 401)
+  } finally {
+    server.close()
+  }
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d13">
+<title>VoxDesk Remoto</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="/assets/icon.png">
+<style>
+:root { color-scheme: dark; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: Inter, -apple-system, 'Segoe UI', system-ui, sans-serif;
+  background: #0b0d13; color: #e9ecf3; font-size: 14px;
+  display: flex; flex-direction: column; height: 100dvh;
+}
+header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.07);
+  font-weight: 700; letter-spacing: 0.5px;
+}
+header .dot { width: 8px; height: 8px; border-radius: 50%; background: #4fc3f7; box-shadow: 0 0 8px #4fc3f7; }
+header .sub { margin-left: auto; font-size: 10px; font-weight: 500; color: rgba(233,236,243,0.4); }
+#pair { padding: 24px 20px; display: flex; flex-direction: column; gap: 10px; }
+#pair input, #log button { font-size: 14px; }
+#pair input {
+  background: #10131b; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
+  padding: 12px; color: #e9ecf3; outline: none; width: 100%;
+}
+#pair small { color: rgba(233,236,243,0.45); line-height: 1.5; }
+#log { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.msg { max-width: 92%; padding: 9px 12px; border-radius: 12px; line-height: 1.45; word-wrap: break-word; }
+.msg.q { align-self: flex-end; background: rgba(79,195,247,0.14); border: 1px solid rgba(79,195,247,0.3); font-family: monospace; font-size: 12.5px; }
+.msg.a { align-self: flex-start; background: #161a24; border: 1px solid rgba(255,255,255,0.07); font-family: monospace; font-size: 12.5px; }
+.msg.sys { align-self: center; font-size: 11px; color: rgba(233,236,243,0.4); }
+#bar { display: flex; gap: 8px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(255,255,255,0.07); }
+#cmd {
+  flex: 1; background: #10131b; border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px; padding: 12px; color: #e9ecf3; font-size: 15px; outline: none;
+  font-family: monospace;
+}
+#cmd:focus { border-color: rgba(79,195,247,0.5); }
+button.act {
+  background: rgba(79,195,247,0.14); border: 1px solid rgba(79,195,247,0.35);
+  color: #4fc3f7; border-radius: 12px; padding: 0 14px; font-size: 15px; font-weight: 700;
+}
+button.act:active { background: rgba(79,195,247,0.28); }
+#tools { display: flex; gap: 8px; padding: 0 12px 10px; }
+#tools button {
+  flex: 1; background: #10131b; border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(233,236,243,0.7); border-radius: 10px; padding: 9px 4px; font-size: 12px;
+}
+#tools button:active { background: rgba(255,255,255,0.06); }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<header><span class="dot"></span>VOXDESK <span class="sub" id="stat">remoto</span></header>
+<div id="pair">
+  <p><b>Emparejar con tu PC</b></p>
+  <small>En el PC: Ajustes → Control remoto → Mostrar QR. Escanea o pega aquí la dirección completa (la que termina en #…).</small>
+  <input id="pair-url" placeholder="http://192.168.1.50:4567/remote/#…" autocomplete="off" />
+  <button class="act" id="pair-btn" style="padding:12px">Conectar</button>
+</div>
+<div id="log" class="hidden"></div>
+<div id="tools" class="hidden">
+  <button id="t-mic">🎤 Dictar</button>
+  <button id="t-timers">⏳ Timers</button>
+  <button id="t-status">📊 Estado</button>
+</div>
+<div id="bar" class="hidden">
+  <input id="cmd" placeholder="Escribe una orden…" autocomplete="off" />
+  <button class="act" id="send">➤</button>
+</div>
+<script src="client.js"></script>
+<script>
+(function () {
+  var base = localStorage.getItem('vox_base') || '';
+  var token = localStorage.getItem('vox_token') || parseToken(location.href);
+  var log = document.getElementById('log');
+  function say(txt, cls) {
+    var d = document.createElement('div');
+    d.className = 'msg ' + cls;
+    d.textContent = txt;
+    log.appendChild(d);
+    log.scrollTop = log.scrollHeight;
+  }
+  function api(path, opts) { return apiCall(fetch.bind(window), base, token, path, opts); }
+  async function send(text) {
+    var t = (text || '').trim();
+    if (!t) return;
+    say(t, 'q');
+    document.getElementById('cmd').value = '';
+    try {
+      var r = await api('/api/execute', { method: 'POST', body: { text: t } });
+      say(r.message || '(sin respuesta)', 'a');
+    } catch (e) { say('Error: ' + e.message, 'sys'); }
+  }
+  function connected(b, t) {
+    base = b; token = t;
+    localStorage.setItem('vox_base', b);
+    localStorage.setItem('vox_token', t);
+    document.getElementById('pair').classList.add('hidden');
+    ['log', 'tools', 'bar'].forEach(function (id) { document.getElementById(id).classList.remove('hidden'); });
+    say('Conectado. Escríbeme o dicta con 🎤.', 'sys');
+    if ('serviceWorker' in navigator) { try { navigator.serviceWorker.register('sw.js'); } catch (e) {} }
+  }
+  document.getElementById('pair-btn').addEventListener('click', function () {
+    var u = document.getElementById('pair-url').value.trim();
+    var t = parseToken(u);
+    if (!t) { alert('Pega la dirección completa que muestra el QR.'); return; }
+    connected(u.split('#')[0], t);
+  });
+  document.getElementById('send').addEventListener('click', function () { send(document.getElementById('cmd').value); });
+  document.getElementById('cmd').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') send(e.target.value);
+  });
+  document.getElementById('t-timers').addEventListener('click', async function () {
+    try {
+      var r = await api('/api/timers');
+      var ts = (r.timers || []).slice(0, 5);
+      say(ts.length ? ts.map(function (x) { return '⏳ ' + x.message; }).join('\n') : 'Sin temporizadores.', 'a');
+    } catch (e) { say('Error: ' + e.message, 'sys'); }
+  });
+  document.getElementById('t-status').addEventListener('click', async function () {
+    try {
+      var r = await api('/api/status');
+      say('VoxDesk ' + (r.version || '') + ' · wake ' + (r.wake ? 'on' : 'off'), 'a');
+    } catch (e) { say('Error: ' + e.message, 'sys'); }
+  });
+  document.getElementById('t-mic').addEventListener('click', function () {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { say('Tu navegador no tiene dictado; escribe la orden.', 'sys'); return; }
+    try {
+      var rec = new SR();
+      rec.lang = 'es-MX';
+      rec.interimResults = false;
+      rec.onresult = function (ev) { send(ev.results[0][0].transcript); };
+      rec.onerror = function () { say('No te escuché, escribe la orden.', 'sys'); };
+      rec.start();
+      say('Te escucho…', 'sys');
+    } catch (e) { say('No pude abrir el micro.', 'sys'); }
+  });
+  if (token) {
+    var b = base || (location.origin + location.pathname);
+    connected(b, token);
+  }
+})();
+</script>
+</body>
+</html>
