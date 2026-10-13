@@ -28,6 +28,7 @@
       ui.setRecording(!!result.recording)
       if (result._tts !== undefined) ui.setTtsAvailable(result._tts)
       ui.showResponse(result.message)
+      window.api.followupArm().catch(() => {})
       if (result.success && result.speak) {
         ui.setSpeaking()
         await say(result.message)
@@ -49,6 +50,7 @@
     ui.setRecording(!!result.recording)
     if (result._tts !== undefined) ui.setTtsAvailable(result._tts)
     ui.showResponse(result.message)
+    window.api.followupArm().catch(() => {})
     if (result.success && result.speak) {
       ui.setSpeaking()
       await say(result.message)
@@ -103,6 +105,7 @@
   window.api.onStatusUpdate((data) => {
     if (data === 'toggle-recording' && !settings.open) ui.onToggle()
     if (data === 'toggle-guide' && !settings.open) guide.toggle()
+    if (data === 'idle-now' && !settings.open) ui.setIdle()
   })
 
   window.api.onAudioLevel((data) => {

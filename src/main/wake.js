@@ -40,6 +40,7 @@ let onText = null
 let onError = null
 let onLevel = null
 let onDown = null
+let onIdle = null
 let running = false
 let _buffer = ''
 let _gen = 0
@@ -100,6 +101,8 @@ function start(wakeWord, opts = {}) {
           if (onText) onText(parsed.text)
         } else if (parsed.error) {
           if (onError) onError(parsed.error)
+        } else if (parsed.silent) {
+          if (onIdle) onIdle()
         } else if (parsed.level !== undefined) {
           if (onLevel) onLevel(parsed.level, parsed.speaking, parsed.vad || 'listening')
         }
@@ -167,4 +170,4 @@ function enginePath() {
   return fs.existsSync(WAKE_EXE) ? WAKE_EXE : null
 }
 
-module.exports = { start, stop, isRunning, listDevices, shouldHear, enginePath, wakeArgs, set onWake(v) { onWake = v }, set onText(v) { onText = v }, set onError(v) { onError = v }, set onLevel(v) { onLevel = v }, set onDown(v) { onDown = v } }
+module.exports = { start, stop, isRunning, listDevices, shouldHear, enginePath, wakeArgs, set onWake(v) { onWake = v }, set onText(v) { onText = v }, set onError(v) { onError = v }, set onLevel(v) { onLevel = v }, set onDown(v) { onDown = v }, set onIdle(v) { onIdle = v } }

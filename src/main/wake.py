@@ -448,15 +448,19 @@ def main():
             if os.path.exists(LISTEN_TRIGGER):
                 try:
                     with open(LISTEN_TRIGGER) as _tf:
-                        _is_ptt = _tf.read().strip() == 'ptt'
+                        _trig = _tf.read().strip()
                 except Exception:
-                    _is_ptt = False
+                    _trig = ''
+                _is_ptt = _trig == 'ptt'
+                _is_follow = _trig == 'followup'
                 try: os.remove(LISTEN_TRIGGER)
                 except: pass
                 audio = capture_speech(stream, timeout=(60 if _is_ptt else 30), initial_frames=list(ringbuf),
                                          end_pause=args.end_pause, vad=vad, patience=args.patience)
                 if audio is not None:
                     recognize(audio)
+                elif _is_follow:
+                    emit(silent=True)
                 else:
                     emit(error="No te escuché")
                 rec = vosk.KaldiRecognizer(_model, RATE)

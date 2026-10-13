@@ -138,6 +138,23 @@ ipcMain.handle('speech:cancel', async () => {
   return true
 })
 
+let _followUntil = 0
+ipcMain.handle('followup:arm', () => {
+  try {
+    if (config.load().followUp === false) return false
+  } catch {}
+  _followUntil = Date.now() + 8000
+  setTimeout(() => {
+    try {
+      if (Date.now() < _followUntil && !_voxSpeaking && wake.isRunning()) {
+        fs.writeFileSync(path.join(os.tmpdir(), 'voxdesk_listen_trigger'), 'followup')
+      }
+    } catch {}
+    _followUntil = 0
+  }, 1200)
+  return true
+})
+
 const systemCmds = require('./src/main/commands/system')
 
 // Fase 3+6: los patrones delicados (smart-exec y system.js) piden permiso.
@@ -653,6 +670,10 @@ wake.onText = async (text) => {
     result._text = text
     mainWindow.webContents.send('wake:result', result)
   }
+}
+
+wake.onIdle = () => {
+  if (mainWindow) mainWindow.webContents.send('status:update', 'idle-now')
 }
 
 wake.onError = (error) => {

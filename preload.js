@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('api', {
   executeCommand: (transcript) => ipcRenderer.invoke('command:execute', transcript),
   recognizeSpeech: (opts) => ipcRenderer.invoke('speech:recognize', opts || {}),
   cancelSpeech: () => ipcRenderer.invoke('speech:cancel'),
+  followupArm: () => ipcRenderer.invoke('followup:arm'),
   speak: (text) => ipcRenderer.invoke('tts:speak', text),
   stopSpeaking: () => ipcRenderer.invoke('tts:stop'),
   toggleWake: () => ipcRenderer.invoke('wake:toggle'),
