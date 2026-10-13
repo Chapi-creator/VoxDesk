@@ -57,4 +57,31 @@ function recentCount(ms) {
   return arr.filter(t => Date.now() - t < (ms || 90 * 60000)).length
 }
 
-module.exports = { getMood, addMood, getName, setName, touchSeen, daysSinceSeen, bumpStreak, markStreakDone, pushCmdTime, recentCount }
+// Estadísticas privadas de uso (para "tu uso" en la guía).
+function trackStats(transcript, ok) {
+  try {
+    const st = memory.get('vox_stats') || { total: 0, ok: 0, cmds: {} }
+    st.total++
+    if (ok) st.ok++
+    const k = String(transcript || '').toLowerCase().trim().slice(0, 40)
+    if (k) {
+      st.cmds[k] = (st.cmds[k] || 0) + 1
+      const keys = Object.keys(st.cmds)
+      if (keys.length > 50) {
+        let minK = keys[0]
+        for (const kk of keys) if (st.cmds[kk] < st.cmds[minK]) minK = kk
+        delete st.cmds[minK]
+      }
+    }
+    memory.set('vox_stats', st)
+    return st
+  } catch { return null }
+}
+
+function statsSummary() {
+  const st = memory.get('vox_stats') || { total: 0, ok: 0, cmds: {} }
+  const top = Object.entries(st.cmds || {}).sort((a, b) => b[1] - a[1]).slice(0, 5)
+  return { total: st.total || 0, okRate: st.total ? Math.round((st.ok || 0) / st.total * 100) : 100, top }
+}
+
+module.exports = { getMood, addMood, getName, setName, touchSeen, daysSinceSeen, bumpStreak, markStreakDone, pushCmdTime, recentCount, trackStats, statsSummary }

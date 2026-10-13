@@ -139,6 +139,29 @@ ipcMain.handle('speech:cancel', async () => {
 })
 
 let _followUntil = 0
+let _dictateUntil = 0
+
+// Modo dictado: todo lo que sigue se ESCRIBE hasta "termina dictado" o 2 min.
+async function maybeDictate(transcript) {
+  const t = String(transcript || '').trim()
+  if (/^(termina|terminar|para|det[eé]n)(\s+(el|de))?\s+dictado$/i.test(t) || /^detente$/i.test(t)) {
+    if (_dictateUntil) {
+      _dictateUntil = 0
+      return { success: true, message: 'Dictado terminado.', speak: true }
+    }
+    return null
+  }
+  if (/^(empieza|inicia|activa|modo)\s+dictado$/i.test(t)) {
+    _dictateUntil = Date.now() + 2 * 60000
+    return { success: true, message: 'Dictando: todo lo que digas se escribe. Di "termina dictado" para parar.', speak: true }
+  }
+  if (_dictateUntil && Date.now() < _dictateUntil) {
+    _dictateUntil = Date.now() + 2 * 60000
+    return await require('./src/main/commands/type').execute(t)
+  }
+  _dictateUntil = 0
+  return null
+}
 ipcMain.handle('followup:arm', () => {
   try {
     if (config.load().followUp === false) return false
@@ -322,6 +345,8 @@ ipcMain.handle(IPC_CHANNELS.COMMAND_EXEC, async (_event, transcript) => {
     return _r({ success: true, message: 'Paso grabado', speak: true })
   }
 
+  const dictated = await maybeDictate(transcript)
+  if (dictated) return _r(dictated)
   return _r(await handleAndTrack(transcript))
   } catch (e) {
     return _r({ success: false, message: 'Error: ' + e.message, speak: true })
@@ -577,6 +602,10 @@ ipcMain.handle('timers:list', () => {
   try { return require('./src/main/commands/timer').listTimers() } catch { return [] }
 })
 
+ipcMain.handle('stats:get', () => {
+  try { return mood.statsSummary() } catch { return { total: 0, okRate: 100, top: [] } }
+})
+
 ipcMain.handle('app:health', () => {
   const checks = []
   try {
@@ -633,6 +662,7 @@ async function handleAndTrack(transcript, depth = 0) {
       mood.addMood(-3)
     }
     mood.pushCmdTime()
+    try { mood.trackStats(transcript, !!(r && r.success)) } catch {}
     // Fase 13: contexto para pronombres (las meta-órdenes no pisan lo referido).
     if (!understand.isMeta(transcript)) {
       memory.set('vox_ctx', { lastAction: transcript, lastResult: String((r && r.message) || '').slice(0, 2000), at: Date.now() })
@@ -666,7 +696,8 @@ wake.onDown = (message) => {
 wake.onText = async (text) => {
   if (!wake.shouldHear(_voxSpeaking, _lastWakeAt)) return
   if (mainWindow) {
-    const result = await handleAndTrack(text)
+    const dictated = await maybeDictate(text)
+    const result = dictated || await handleAndTrack(text)
     result._text = text
     mainWindow.webContents.send('wake:result', result)
   }

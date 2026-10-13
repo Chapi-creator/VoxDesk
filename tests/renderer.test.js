@@ -84,6 +84,7 @@ function apiStub(over = {}) {
     ollamaInstall: async () => true,
     ollamaPull: async () => true,
     onOllamaPullDone: () => {},
+    statsGet: async () => ({ total: 0, okRate: 100, top: [] }),
     clearLlmHistory: async () => {},
     getHelp: async () => ({ commands: ['abre', 'di'], groups: [{ group: 'G', items: ['x'] }] }),
     minimizeWindow: async () => {},

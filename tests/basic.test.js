@@ -874,6 +874,29 @@ test('add/remove rutinas', () => {
   assert.equal(routines.remove(999999), false)
 })
 
+console.log('\ndictado + stats (4+5)')
+const type = require('../src/main/commands/type')
+
+test('chunkText trocea en 400', () => {
+  assert.deepEqual(type.chunkText('abc'), ['abc'])
+  const long = 'x'.repeat(900)
+  const parts = type.chunkText(long)
+  assert.equal(parts.length, 3)
+  assert.equal(parts.join(''), long)
+})
+
+test('trackStats cuenta y resume', () => {
+  memory.set('vox_stats', null)
+  mood.trackStats('abre chrome', true)
+  mood.trackStats('abre chrome', true)
+  mood.trackStats('falla esto', false)
+  const s = mood.statsSummary()
+  assert.equal(s.total, 3)
+  assert.equal(s.okRate, 67)
+  assert.equal(s.top[0][0], 'abre chrome')
+  memory.set('vox_stats', null)
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

@@ -24,6 +24,20 @@ class GuideManager {
     }
 
     this.elements.list.innerHTML = ''
+    try {
+      const st = await window.api.statsGet()
+      if (st && st.total > 0) {
+        const header = document.createElement('div')
+        header.className = 'guide-group'
+        header.innerHTML = '<strong>Tu uso</strong>'
+        this.elements.list.appendChild(header)
+        const div = document.createElement('div')
+        div.className = 'guide-item'
+        const tops = (st.top || []).map(([t, n]) => `${t} (${n})`).join(' · ')
+        div.innerHTML = `<span class="cmd">${st.total} órdenes · ${st.okRate}% ok</span><span class="desc">${tops}</span>`
+        this.elements.list.appendChild(div)
+      }
+    } catch {}
     const voiceHeader = document.createElement('div')
     voiceHeader.className = 'guide-group'
     voiceHeader.innerHTML = '<strong>Para que no te corte</strong>'
