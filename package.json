@@ -78,6 +78,7 @@
   "dependencies": {
     "@travisvn/edge-tts": "^1.0.2",
     "electron-updater": "^6.8.9",
-    "nodemailer": "^10.0.15"
+    "nodemailer": "^10.0.15",
+    "qrcode": "^1.5.4"
   }
 }

@@ -51,6 +51,9 @@ contextBridge.exposeInMainWorld('api', {
   voicesList: () => ipcRenderer.invoke('voices:list'),
   voicesAdd: (name, url) => ipcRenderer.invoke('voices:add', name, url),
   voicesRemove: (file) => ipcRenderer.invoke('voices:remove', file),
+  remoteInfo: () => ipcRenderer.invoke('remote:info'),
+  remoteQr: () => ipcRenderer.invoke('remote:qr'),
+  remoteRevoke: () => ipcRenderer.invoke('remote:revoke'),
   modelsStatus: () => ipcRenderer.invoke('models:status'),
   modelsDownloadLarge: () => ipcRenderer.invoke('models:download-large'),
   onModelsProgress: (callback) => {

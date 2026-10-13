@@ -32,10 +32,13 @@ async function plan(goal, askFn) {
   return parsePlan(await askFn(prompt))
 }
 
-async function run(goal, { ask, execStep, confirm }) {
+async function run(goal, { ask, execStep, confirm }, opts = {}) {
   const steps = await plan(goal, ask)
   if (!steps) {
     return { ok: false, message: 'No pude armar un plan con lo que sé hacer. Reformula la meta o divídela en pasos.' }
+  }
+  if (opts.remote) {
+    return { ok: true, remote: true, message: 'Plan listo, pero los planes se aprueban en el PC:\n' + steps.map((s, i) => `${i + 1}. ${s.action}`).join('\n') }
   }
   const go = await confirm(steps)
   if (!go) return { ok: true, cancelled: true, message: 'Plan cancelado. Dime cuando quieras.' }

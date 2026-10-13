@@ -198,6 +198,18 @@
         <div id="settings-voicerate-val" style="font-size:9px;color:rgba(255,255,255,0.2);text-align:center">1</div>
       </div>
       <div class="settings-section">
+        <div class="settings-section-title">Control remoto (tu WiFi, sin nube)</div>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:normal">
+          <input type="checkbox" id="settings-remote" style="width:auto" /> Activar acceso desde el móvil
+        </label>
+        <div class="status-msg" id="settings-remote-info"></div>
+        <img id="settings-remote-qr" style="display:none;width:180px;height:180px;margin:0 auto;border-radius:8px" />
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <button class="btn-start" id="btn-remote-qr" style="flex:1">Mostrar QR</button>
+          <button class="btn-start" id="btn-remote-revoke" style="flex:1">Revocar acceso</button>
+        </div>
+      </div>
+      <div class="settings-section">
         <div class="settings-section-title">Correo SMTP</div>
         <label>Servidor</label>
         <input type="text" id="settings-smtp-host" placeholder="smtp.gmail.com" spellcheck="false" />

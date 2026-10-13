@@ -924,6 +924,59 @@ await atest('plugins: match, run y error aislado', async () => {
   plugins.setSkillsDir('')
 })
 
+console.log('\nremoto (R1)')
+const remoteApi = require('../src/main/remote')
+
+test('token bearer + timingSafe', () => {
+  const t = remoteApi.newToken()
+  assert.equal(t.length, 64)
+  const req = { headers: { authorization: 'Bearer ' + t } }
+  assert.equal(remoteApi.parseBearer(req), t)
+  assert.equal(remoteApi.parseBearer({ headers: {} }), '')
+  assert.equal(remoteApi.checkToken(t, t), true)
+  assert.equal(remoteApi.checkToken(t + 'x', t), false)
+  assert.equal(remoteApi.checkToken('', t), false)
+})
+
+await atest('startRemote: 401 sin token, 200 con token, 404 resto', async () => {
+  const http = require('http')
+  const { server, port } = await remoteApi.startRemote({
+    port: 45671,
+    getToken: () => 'secreto',
+    handlers: {
+      execute: async (text) => ({ success: true, message: 'eco:' + text }),
+      status: async () => ({ version: 'x' }),
+      timers: async () => [{ message: 'a', timestamp: 1 }],
+      speak: async () => true,
+    },
+  })
+  const call = (path, opts = {}, body) => new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port, path, method: opts.method || 'GET', headers: opts.headers || {} }, (res) => {
+      let d = ''
+      res.on('data', (c) => { d += c })
+      res.on('end', () => resolve({ code: res.statusCode, body: JSON.parse(d) }))
+    })
+    req.on('error', reject)
+    if (body) req.write(body)
+    req.end()
+  })
+  try {
+    assert.equal((await call('/api/status')).code, 401)
+    const H = { authorization: 'Bearer secreto' }
+    const st = await call('/api/status', { headers: H })
+    assert.equal(st.code, 200)
+    assert.equal(st.body.version, 'x')
+    const ex = await call('/api/execute', { method: 'POST', headers: { ...H, 'content-type': 'application/json' } }, JSON.stringify({ text: 'hola' }))
+    assert.equal(ex.body.message, 'eco:hola')
+    const sp = await call('/api/speak', { method: 'POST', headers: { ...H, 'content-type': 'application/json' } }, JSON.stringify({ text: 'hola' }))
+    assert.equal(sp.body.ok, true)
+    assert.equal((await call('/api/nope', { headers: H })).code, 404)
+    assert.equal((await call('/otro', { headers: H })).code, 404)
+  } finally {
+    server.close()
+  }
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

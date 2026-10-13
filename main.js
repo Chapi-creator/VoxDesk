@@ -181,7 +181,9 @@ ipcMain.handle('followup:arm', () => {
 const systemCmds = require('./src/main/commands/system')
 
 // Fase 3+6: los patrones delicados (smart-exec y system.js) piden permiso.
+// En remoto se deniegan (se aprueban en el PC).
 async function confirmDestructive(title, detail) {
+  if (_remoteActive > 0) return false
   if (!mainWindow) return false
   const { response } = await dialog.showMessageBox(mainWindow, {
     type: 'warning',
@@ -396,6 +398,7 @@ ipcMain.handle('config:save', (_event, data) => {
   if (data.wakeWord) data.wakeWord = data.wakeWord.toLowerCase().trim()
   const ok = config.save(data)
   if (ok && wakeMode) { wake.stop(); setTimeout(() => wake.start(data.wakeWord || 'asistente'), 100) }
+  syncRemoteServer()
   return ok
 })
 
@@ -733,6 +736,88 @@ wake.onError = (error) => {
 const agent = require('./src/main/agent')
 const understand = require('./src/main/understand')
 const plugins = require('./src/main/plugins')
+const remoteApi = require('./src/main/remote')
+
+let _remoteServer = null
+let _remotePort = 0
+let _remoteActive = 0
+
+async function syncRemoteServer() {
+  try {
+    const cfg = config.load()
+    if (!cfg.remoteEnabled) {
+      if (_remoteServer) { try { _remoteServer.close() } catch {} _remoteServer = null }
+      return
+    }
+    if (!cfg.remoteToken) {
+      config.save({ ...cfg, remoteToken: remoteApi.newToken() })
+    }
+    if (_remoteServer) return
+    const { server, port } = await remoteApi.startRemote({
+      port: cfg.remotePort || 4567,
+      getToken: () => { try { return config.load().remoteToken || '' } catch { return '' } },
+      handlers: {
+        execute: async (text) => {
+          _remoteActive++
+          try {
+            const r = await handleAndTrack(text)
+            return { success: !!r.success, message: r.message || '' }
+          } finally { _remoteActive-- }
+        },
+        status: async () => ({ version: app.getVersion(), wake: wake.isRunning() }),
+        timers: async () => {
+          try { return require('./src/main/commands/timer').listTimers() } catch { return [] }
+        },
+        speak: async (text) => {
+          try {
+            if (String(memory.get('vox_muted') || '') === '1') return false
+            await tts.speak(text)
+            return true
+          } catch { return false }
+        },
+      },
+    })
+    _remoteServer = server
+    _remotePort = port
+    logger.info('Remote LAN en puerto ' + port)
+  } catch (e) {
+    logger.warn('remote no pudo arrancar: ' + e.message)
+  }
+}
+
+ipcMain.handle('remote:info', () => {
+  try {
+    const cfg = config.load()
+    const ip = remoteApi.lanIp()
+    return {
+      enabled: !!cfg.remoteEnabled,
+      ip, port: _remotePort || cfg.remotePort || 4567,
+      url: ip && _remotePort ? `http://${ip}:${_remotePort}/remote/` : '',
+      hasToken: !!cfg.remoteToken,
+    }
+  } catch { return { enabled: false, ip: '', port: 0, url: '', hasToken: false } }
+})
+
+ipcMain.handle('remote:qr', async () => {
+  try {
+    const cfg = config.load()
+    if (!cfg.remoteEnabled || !cfg.remoteToken || !_remotePort) return null
+    const ip = remoteApi.lanIp()
+    if (!ip) return null
+    const url = `http://${ip}:${_remotePort}/remote/#${cfg.remoteToken}`
+    const QRCode = require('qrcode')
+    const dataUrl = await QRCode.toDataURL(url, { width: 220, margin: 1 })
+    return { url: `http://${ip}:${_remotePort}/remote/`, dataUrl }
+  } catch { return null }
+})
+
+ipcMain.handle('remote:revoke', () => {
+  try {
+    const cfg = config.load()
+    config.save({ ...cfg, remoteToken: remoteApi.newToken() })
+    return true
+  } catch { return false }
+})
 
 async function runAgent(goal) {
   const res = await agent.run(goal, {
@@ -750,7 +835,7 @@ async function runAgent(goal) {
       })
       return response === 0
     },
-  })
+  }, { remote: _remoteActive > 0 })
   return { success: res.ok || !!res.cancelled, message: res.message + '\n\n¿Algo más?', speak: true }
 }
 
@@ -873,6 +958,7 @@ app.whenReady().then(async () => {
   }
   startWake()
   mark('wake')
+  syncRemoteServer()
   setTimeout(() => lifeTick(), 30000)
   setInterval(() => lifeTick(), 60000)
   mark('ready')

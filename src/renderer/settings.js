@@ -28,6 +28,11 @@ class SettingsManager {
     this.elements.username = document.getElementById('settings-username')
     this.elements.proactivity = document.getElementById('settings-proactivity')
     this.elements.voice = document.getElementById('settings-voice')
+    this.elements.remote = document.getElementById('settings-remote')
+    this.elements.remoteInfo = document.getElementById('settings-remote-info')
+    this.elements.remoteQr = document.getElementById('settings-remote-qr')
+    this.elements.remoteQrBtn = document.getElementById('btn-remote-qr')
+    this.elements.remoteRevokeBtn = document.getElementById('btn-remote-revoke')
     this.elements.customVoices = document.getElementById('settings-custom-voices')
     this.elements.voiceUrl = document.getElementById('settings-voice-url')
     this.elements.voiceAddBtn = document.getElementById('btn-voice-add')
@@ -69,9 +74,13 @@ class SettingsManager {
     if (cfg.patience && this.elements.patience) this.elements.patience.value = cfg.patience
     if (this.elements.ptt) this.elements.ptt.checked = !!cfg.pttMode
     if (cfg.voiceModel && this.elements.voiceModel) this.elements.voiceModel.value = cfg.voiceModel
+    if (typeof cfg.remoteEnabled === 'boolean' && this.elements.remote) this.elements.remote.checked = cfg.remoteEnabled
+    this._refreshRemote()
     this._refreshModelStatus()
     if (cfg.proactivity && this.elements.proactivity) this.elements.proactivity.value = cfg.proactivity
     if (cfg.voice && this.elements.voice) this.elements.voice.value = cfg.voice
+    if (this.elements.remote) this.elements.remote.checked = !!cfg.remoteEnabled
+    this._refreshRemote()
     if (cfg.voiceRate && this.elements.voiceRate) { this.elements.voiceRate.value = cfg.voiceRate; this.elements.voiceRateVal.textContent = cfg.voiceRate }
     try {
       const savedName = await window.api.getPreference('vox_name')
@@ -126,6 +135,24 @@ class SettingsManager {
     if (this.elements.ollamaDlBtn) this.elements.ollamaDlBtn.addEventListener('click', async () => {
       this.elements.ollamaStatus.textContent = 'Descargando instalador… complétalo y vuelve.'
       await window.api.ollamaInstall()
+    })
+    if (this.elements.remoteQrBtn) this.elements.remoteQrBtn.addEventListener('click', async () => {
+      try {
+        const qr = await window.api.remoteQr()
+        if (qr && qr.dataUrl && this.elements.remoteQr) {
+          this.elements.remoteQr.src = qr.dataUrl
+          this.elements.remoteQr.style.display = ''
+        } else if (this.elements.remoteInfo) {
+          this.elements.remoteInfo.textContent = 'Guarda primero con remoto activado.'
+        }
+      } catch {}
+    })
+    if (this.elements.remoteRevokeBtn) this.elements.remoteRevokeBtn.addEventListener('click', async () => {
+      try {
+        await window.api.remoteRevoke()
+        if (this.elements.remoteQr) this.elements.remoteQr.style.display = 'none'
+        this._refreshRemote()
+      } catch {}
     })
     if (this.elements.modelDlBtn) this.elements.modelDlBtn.addEventListener('click', async () => {
       this.elements.modelMeter.style.display = ''
@@ -265,6 +292,21 @@ class SettingsManager {
     }
   }
 
+  async _refreshRemote() {
+    if (!this.elements.remoteInfo) return
+    try {
+      const info = await window.api.remoteInfo()
+      if (!info.enabled) {
+        this.elements.remoteInfo.textContent = 'Apagado. Actívalo y guarda para usarlo en tu WiFi.'
+        if (this.elements.remoteQr) this.elements.remoteQr.style.display = 'none'
+        return
+      }
+      this.elements.remoteInfo.textContent = info.url ? `Escucha en ${info.url} (solo tu WiFi)` : 'Activado: guarda para ver la dirección.'
+    } catch {
+      this.elements.remoteInfo.textContent = ''
+    }
+  }
+
   async _refreshOllama() {
     if (!this.elements.ollamaStatus || !window.api.ollamaStatus) return
     try {
@@ -322,6 +364,7 @@ class SettingsManager {
       patience: ['tranquilo', 'normal', 'rapido'].includes(this.elements.patience && this.elements.patience.value) ? this.elements.patience.value : 'normal',
       pttMode: !!(this.elements.ptt && this.elements.ptt.checked),
       followUp: !this.elements.followUp || !!this.elements.followUp.checked,
+      remoteEnabled: !!(this.elements.remote && this.elements.remote.checked),
       voiceModel: this.elements.voiceModel ? this.elements.voiceModel.value : 'small',
       proactivity: this.elements.proactivity ? this.elements.proactivity.value : 'total',
       voice: this.elements.voice ? this.elements.voice.value : 'mexicana',

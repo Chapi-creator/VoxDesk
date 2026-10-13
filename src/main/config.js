@@ -4,7 +4,7 @@ const logger = require('./logger')
 
 let _userDataPath = ''
 
-const DEFAULTS = { apiKey: '', provider: 'gemini', model: 'gemini-flash-latest', apiUrl: '', configured: false, wakeWord: 'asistente', aiKeywords: 'ia,bot,asistente', micDevice: '', endPause: 2.2, proactivity: 'total', pttMode: false, patience: 'normal', followUp: true, voice: 'mexicana', voiceRate: 1, edgeVoice: 'es-MX-DaliaNeural', voiceModel: 'small', smtpHost: '', smtpPort: 587, smtpUser: '', smtpPass: '', smtpFrom: '', systemPrompt: '', temperature: 0.7, maxTokens: 4096 }
+const DEFAULTS = { apiKey: '', provider: 'gemini', model: 'gemini-flash-latest', apiUrl: '', configured: false, wakeWord: 'asistente', aiKeywords: 'ia,bot,asistente', micDevice: '', endPause: 2.2, proactivity: 'total', pttMode: false, patience: 'normal', followUp: true, voice: 'mexicana', voiceRate: 1, edgeVoice: 'es-MX-DaliaNeural', voiceModel: 'small', remoteEnabled: false, remotePort: 4567, remoteToken: '', smtpHost: '', smtpPort: 587, smtpUser: '', smtpPass: '', smtpFrom: '', systemPrompt: '', temperature: 0.7, maxTokens: 4096 }
 
 function _getPath() {
   return path.join(_userDataPath, 'assistant-config.json')
@@ -51,6 +51,7 @@ function load() {
     const raw = JSON.parse(fs.readFileSync(_getPath(), 'utf8'))
     if (raw.apiKey) raw.apiKey = _decrypt(raw.apiKey)
     if (raw.smtpPass) raw.smtpPass = _decrypt(raw.smtpPass)
+    if (raw.remoteToken) raw.remoteToken = _decrypt(raw.remoteToken)
     return { ...DEFAULTS, ...raw }
   } catch {
     return { ...DEFAULTS }
@@ -64,6 +65,7 @@ function save(data) {
     const out = { ...data }
     if (out.apiKey) out.apiKey = _encrypt(out.apiKey)
     if (out.smtpPass) out.smtpPass = _encrypt(out.smtpPass)
+    if (out.remoteToken) out.remoteToken = _encrypt(out.remoteToken)
     fs.writeFileSync(_getPath(), JSON.stringify(out, null, 2))
     return true
   } catch (e) {
