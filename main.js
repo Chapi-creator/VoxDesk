@@ -181,9 +181,17 @@ ipcMain.handle('followup:arm', () => {
 const systemCmds = require('./src/main/commands/system')
 
 // Fase 3+6: los patrones delicados (smart-exec y system.js) piden permiso.
-// En remoto se deniegan (se aprueban en el PC).
+// En remoto se deniegan Y se encolan para aprobar en el PC.
+let _lastRemoteTx = null
+let _remoteQueued = 0
 async function confirmDestructive(title, detail) {
-  if (_remoteActive > 0) return false
+  if (_remoteActive > 0) {
+    try {
+      approvals.queue(title, detail, _lastRemoteTx && _lastRemoteTx.transcript)
+      _remoteQueued++
+    } catch {}
+    return false
+  }
   if (!mainWindow) return false
   const { response } = await dialog.showMessageBox(mainWindow, {
     type: 'warning',
@@ -737,6 +745,7 @@ const agent = require('./src/main/agent')
 const understand = require('./src/main/understand')
 const plugins = require('./src/main/plugins')
 const remoteApi = require('./src/main/remote')
+const approvals = require('./src/main/approvals')
 
 let _remoteServer = null
 let _remotePort = 0
@@ -760,10 +769,15 @@ async function syncRemoteServer() {
       handlers: {
         execute: async (text) => {
           _remoteActive++
+          _lastRemoteTx = { transcript: text, at: Date.now() }
+          const q0 = _remoteQueued
           try {
             const r = await handleAndTrack(text)
+            if (_remoteQueued > q0) {
+              return { success: true, message: 'Acción delicada: quedó pendiente de aprobar en el PC.', pending: true }
+            }
             return { success: !!r.success, message: r.message || '' }
-          } finally { _remoteActive-- }
+          } finally { _remoteActive--; _lastRemoteTx = null }
         },
         status: async () => ({ version: app.getVersion(), wake: wake.isRunning() }),
         timers: async () => {
@@ -818,6 +832,22 @@ ipcMain.handle('remote:revoke', () => {
     config.save({ ...cfg, remoteToken: remoteApi.newToken() })
     return true
   } catch { return false }
+})
+
+ipcMain.handle('approvals:list', () => {
+  try { return approvals.list() } catch { return [] }
+})
+
+ipcMain.handle('approvals:decide', async (_event, id, ok) => {
+  try {
+    const item = approvals.decide(id, !!ok)
+    if (!item) return { ok: false }
+    if (ok && item.transcript) {
+      const r = await handleAndTrack(item.transcript)
+      return { ok: true, message: r.message || '' }
+    }
+    return { ok: true, message: 'Descartada.' }
+  } catch { return { ok: false } }
 })
 
 async function runAgent(goal) {

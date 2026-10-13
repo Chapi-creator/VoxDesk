@@ -54,6 +54,8 @@ contextBridge.exposeInMainWorld('api', {
   remoteInfo: () => ipcRenderer.invoke('remote:info'),
   remoteQr: () => ipcRenderer.invoke('remote:qr'),
   remoteRevoke: () => ipcRenderer.invoke('remote:revoke'),
+  approvalsList: () => ipcRenderer.invoke('approvals:list'),
+  approvalsDecide: (id, ok) => ipcRenderer.invoke('approvals:decide', id, ok),
   modelsStatus: () => ipcRenderer.invoke('models:status'),
   modelsDownloadLarge: () => ipcRenderer.invoke('models:download-large'),
   onModelsProgress: (callback) => {

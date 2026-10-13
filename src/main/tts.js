@@ -1,4 +1,4 @@
-const { spawn, execFile } = require('child_process')
+﻿const { spawn, execFile } = require('child_process')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -95,7 +95,7 @@ function edgeSpeak(text, eng, tok) {
         const ps = `try { $w = New-Object -ComObject WMPlayer.OCX; $w.URL = '${escapeSingle(mp3)}'; $w.controls.play(); $t = 0; while ($w.playState -ne 1 -and $t -lt 120) { Start-Sleep -Milliseconds 300; $t++ } } catch { exit 1 }`
         const psFile = psScript()
         fs.writeFileSync(psFile, '﻿' + ps, 'utf8')
-        const child = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', `"${psFile}"`], { windowsHide: true })
+        const child = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', psFile], { windowsHide: true })
         _child = child
         child.on('close', () => {
           if (_child === child) _child = null
@@ -141,7 +141,7 @@ function piperSpeak(text, eng, tok) {
       const ps = `try { $p = New-Object Media.SoundPlayer '${escapeSingle(wav)}'; $p.PlaySync() } catch { exit 1 }`
       const psFile = psScript()
       fs.writeFileSync(psFile, '﻿' + ps, 'utf8')
-      const child = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', `"${psFile}"`], { windowsHide: true })
+      const child = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', psFile], { windowsHide: true })
       _child = child
       const done = (ok) => {
         if (_child === child) _child = null
@@ -180,7 +180,7 @@ function sapiSpeak(text) {
 }`
     const psFile = psScript()
     fs.writeFileSync(psFile, '﻿' + ps, 'utf8')
-    const child = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', `"${psFile}"`], { windowsHide: true })
+    const child = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', psFile], { windowsHide: true })
     _child = child
     child.on('close', (code) => {
       if (_child === child) _child = null
@@ -242,7 +242,7 @@ async function selfTest({ silent = false } = {}) {
     const ps = `try { $p = New-Object Media.SoundPlayer '${escapeSingle(wav)}'; $p.PlaySync(); exit 0 } catch { exit 1 }`
     const psFile = psScript()
     fs.writeFileSync(psFile, '﻿' + ps, 'utf8')
-    const child = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', `"${psFile}"`], { windowsHide: true })
+    const child = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', psFile], { windowsHide: true })
     child.on('close', (code) => {
       try { fs.unlinkSync(psFile) } catch {}
       try { fs.unlinkSync(wav) } catch {}

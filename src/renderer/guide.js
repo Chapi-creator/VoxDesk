@@ -4,6 +4,7 @@ class GuideManager {
     this.open = false
     this.elements = {}
     this.onSelect = null // (texto) => ejecuta un comando de ejemplo
+    this.onApprove = null // (mensaje) => muestra resultado de aprobación
     // ponytail: tocar = intención explícita; lo delicado igual pide confirmación (Fase 3)
     this.tryItems = ['di hola vox', 'qué hora es', 'qué fecha es', 'ayuda', 'clima en Madrid', 'traduce hola al inglés', 'temporizador de 10 segundos', 'cuéntame un chiste']
   }
@@ -48,6 +49,45 @@ class GuideManager {
       div.innerHTML = `<span class="desc">${tip}</span>`
       this.elements.list.appendChild(div)
     }
+    try {
+      const pend = await window.api.approvalsList()
+      if (pend && pend.length) {
+        const header = document.createElement('div')
+        header.className = 'guide-group'
+        header.innerHTML = '<strong>Pendiente de aprobar (remoto)</strong>'
+        this.elements.list.appendChild(header)
+        for (const p of pend.slice(0, 5)) {
+          const div = document.createElement('div')
+          div.className = 'guide-item'
+          const label = document.createElement('span')
+          label.className = 'cmd'
+          label.textContent = p.title
+          const btns = document.createElement('span')
+          const yes = document.createElement('button')
+          yes.className = 'h-fb-btn'
+          yes.textContent = '✓'
+          yes.title = 'Aprobar y ejecutar'
+          const no = document.createElement('button')
+          no.className = 'h-fb-btn'
+          no.textContent = '✕'
+          no.title = 'Descartar'
+          yes.addEventListener('click', async () => {
+            const r = await window.api.approvalsDecide(p.id, true)
+            if (this.onApprove) this.onApprove(r && r.message ? r.message : 'Ejecutado.')
+            this.close()
+          })
+          no.addEventListener('click', async () => {
+            await window.api.approvalsDecide(p.id, false)
+            this.close()
+          })
+          btns.appendChild(yes)
+          btns.appendChild(no)
+          div.appendChild(label)
+          div.appendChild(btns)
+          this.elements.list.appendChild(div)
+        }
+      }
+    } catch {}
     const tryHeader = document.createElement('div')
     tryHeader.className = 'guide-group'
     tryHeader.innerHTML = '<strong>Toca para probar</strong>'

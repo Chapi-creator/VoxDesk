@@ -1038,6 +1038,25 @@ await atest('PWA servida sin auth, API con auth', async () => {
   }
 })
 
+console.log('\naprobaciones (R3)')
+const approvals = require('../src/main/approvals')
+
+test('cola: encolar, listar, decidir, tope', () => {
+  approvals.clear()
+  const id = approvals.queue('Apagar equipo', 'detalle', 'apaga el equipo')
+  assert.ok(approvals.list().some(x => x.id === id))
+  const item = approvals.decide(id, true)
+  assert.equal(item.transcript, 'apaga el equipo')
+  assert.equal(approvals.list().length, 0)
+  const id2 = approvals.queue('X', 'y', 'z')
+  assert.equal(approvals.decide(999999, true), null)
+  assert.equal(approvals.decide(id2, false), null)
+  for (let i = 0; i < 25; i++) approvals.queue('T' + i, '', 'x')
+  assert.ok(approvals.list().length <= 20)
+  approvals.clear()
+  assert.equal(approvals.list().length, 0)
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

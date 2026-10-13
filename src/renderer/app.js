@@ -166,6 +166,10 @@
   })
 
   guide.onSelect = (text) => handleCommand(text)
+  guide.onApprove = (message) => {
+    ui.pushHistory('[aprobado]', message)
+    ui.showResponse(message)
+  }
 
   ui.init()
   settings.init()
