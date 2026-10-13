@@ -274,6 +274,25 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
     return { success: true, message: 'Macro ejecutada', speak: true }
   }
 
+  if (/^recarga plugins$/i.test(t)) {
+    const loaded = plugins.loadAll()
+    return { success: true, message: loaded.length ? `Plugins: ${loaded.map(p => p.name).join(', ')}.` : 'Carpeta de plugins vacía (mira ejemplo.js en tus datos).', speak: true }
+  }
+
+  // Plugins del usuario (antes que smart, después que macros).
+  try {
+    const plug = plugins.match(t)
+    if (plug) {
+      const tools = {
+        open: async (target) => {
+          const launch = require('./src/main/commands/launch')
+          return await launch.execute(String(target))
+        },
+      }
+      return await plugins.runPlugin(plug, t, tools)
+    }
+  } catch {}
+
   // Fase 14a: autonomía — "encárgate de X" planifica y ejecuta con tu aprobación.
   const agentMatch = t.match(/^(enc[aá]rgate de|modo aut[oó]nomo|haz todo esto|plan:?)\s+(.+)/i)
   if (agentMatch) {
@@ -713,6 +732,7 @@ wake.onError = (error) => {
 
 const agent = require('./src/main/agent')
 const understand = require('./src/main/understand')
+const plugins = require('./src/main/plugins')
 
 async function runAgent(goal) {
   const res = await agent.run(goal, {
@@ -830,6 +850,9 @@ app.whenReady().then(async () => {
   app.setPath('userData', path.join(app.getPath('appData'), 'ai-desktop-assistant'))
   config.setUserDataPath(app.getPath('userData'))
   memory.setUserDataPath(app.getPath('userData'))
+  plugins.setSkillsDir(path.join(app.getPath('userData'), 'skills'))
+  plugins.ensureExample()
+  plugins.loadAll()
   logger.init(app.getPath('userData'))
   logger.info('App started')
   const port = await startServer()

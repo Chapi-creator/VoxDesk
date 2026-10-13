@@ -897,6 +897,33 @@ test('trackStats cuenta y resume', () => {
   memory.set('vox_stats', null)
 })
 
+console.log('\nplugins (6)')
+const plugins = require('../src/main/plugins')
+
+await atest('plugins: match, run y error aislado', async () => {
+  const fs = require('fs')
+  const os = require('os')
+  const path = require('path')
+  const dir = path.join(os.tmpdir(), 'vox-skills-test')
+  fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(path.join(dir, 'a.js'), "module.exports = { name: 'saludo', triggers: ['di hola con estilo'], run: async () => ({ message: 'hola!' }) }")
+  fs.writeFileSync(path.join(dir, 'roto.js'), "module.exports = { name: 'roto', triggers: ['rompete'], run: async () => { throw new Error('pum') } }")
+  fs.writeFileSync(path.join(dir, 'nota.txt'), 'ignorado')
+  plugins.setSkillsDir(dir)
+  const loaded = plugins.loadAll()
+  assert.equal(loaded.length, 2)
+  const hit = plugins.match('oye, di hola con estilo porfa')
+  assert.equal(hit.name, 'saludo')
+  assert.equal(plugins.match('abre chrome'), null)
+  const ok = await plugins.runPlugin(hit, 'x', {})
+  assert.equal(ok.message, 'hola!')
+  const bad = await plugins.runPlugin(plugins.match('rompete ya'), 'x', {})
+  assert.equal(bad.success, false)
+  assert.ok(bad.message.includes('roto'))
+  fs.rmSync(dir, { recursive: true, force: true })
+  plugins.setSkillsDir('')
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }
