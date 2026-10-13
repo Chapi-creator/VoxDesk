@@ -572,7 +572,7 @@ ipcMain.handle('models:status', () => {
   }
 })
 
-// A1: descarga 1.4 GB con progreso (eventos models:progress). Nada silencioso.
+// A1: descarga 2.3 GB con progreso (eventos models:progress). Nada silencioso.
 ipcMain.handle('models:download-large', async () => {
   const https = require('https')
   const fs = require('fs')

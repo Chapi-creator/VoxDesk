@@ -157,7 +157,7 @@ class SettingsManager {
     if (this.elements.modelDlBtn) this.elements.modelDlBtn.addEventListener('click', async () => {
       this.elements.modelMeter.style.display = ''
       this.elements.modelFill.style.width = '0%'
-      this.elements.modelStatus.textContent = 'Descargando 1.4 GB… no cierres.'
+      this.elements.modelStatus.textContent = 'Descargando 2.3 GB… no cierres.'
       await window.api.modelsDownloadLarge()
     })
     if (window.api.onModelsProgress) window.api.onModelsProgress((r) => {
@@ -287,7 +287,7 @@ class SettingsManager {
         this.elements.modelStatus.textContent = `Incompleto (${st.MB || 0} MB): faltan ${st.missing.join(', ')}. Reintenta.`
         if (this.elements.modelDlBtn) { this.elements.modelDlBtn.style.display = ''; this.elements.modelDlBtn.textContent = 'Reintentar descarga' }
       } else {
-        this.elements.modelStatus.textContent = 'Modelo preciso no descargado (1.4 GB).'
+        this.elements.modelStatus.textContent = 'Modelo preciso no descargado (2.3 GB).'
         if (this.elements.modelDlBtn) { this.elements.modelDlBtn.style.display = ''; this.elements.modelDlBtn.textContent = 'Descargar preciso' }
       }
     } catch {

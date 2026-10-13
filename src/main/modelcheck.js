@@ -2,11 +2,11 @@
 const fs = require('fs')
 const path = require('path')
 
-// Archivos que prueban una descarga completa (tamaños mínimos seguros).
+// Archivos que prueban una descarga completa del GRANDE (HCLG único + rescore).
+// OJO: no son los del small (HCLr.fst/Gr.fst no existen aquí).
 const REQUIRED = [
   ['am', 'final.mdl', 50 * 1024 * 1024],
-  ['graph', 'HCLr.fst', 50 * 1024 * 1024],
-  ['graph', 'Gr.fst', 100 * 1024 * 1024],
+  ['graph', 'HCLG.fst', 300 * 1024 * 1024],
   ['conf', 'model.conf', 100],
 ]
 
