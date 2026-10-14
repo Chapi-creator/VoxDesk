@@ -12,6 +12,27 @@ const WAKE_EXE = (() => {
   return path.join(__dirname, '..', '..', 'dist', 'wake.exe')
 })()
 
+// Diagnóstico de micro 3 s (Ajustes). [] si no se puede.
+function micCheck() {
+  return new Promise((resolve) => {
+    const useExe = fs.existsSync(WAKE_EXE)
+    const cmd = useExe ? WAKE_EXE : 'python'
+    const args = useExe ? ['--mic-check'] : [path.join(__dirname, 'wake.py'), '--mic-check']
+    execFile(cmd, args, { timeout: 30000 }, (err, stdout) => {
+      if (err) return resolve({ ok: false, error: 'no se pudo probar' })
+      try {
+        for (const line of String(stdout).split('\n')) {
+          const t = line.trim()
+          if (!t || !t.startsWith('{')) continue
+          const o = JSON.parse(t)
+          if (o.verdict || o.error) return resolve(o)
+        }
+        resolve({ ok: false, error: 'sin respuesta' })
+      } catch { resolve({ ok: false, error: 'respuesta rota' }) }
+    })
+  })
+}
+
 // Lista micrófonos vía wake (exe) o wake.py (dev). [] si no se puede.
 function listDevices() {
   return new Promise((resolve) => {
@@ -181,4 +202,4 @@ function enginePath() {
   return fs.existsSync(WAKE_EXE) ? WAKE_EXE : null
 }
 
-module.exports = { start, stop, isRunning, listDevices, shouldHear, enginePath, wakeArgs, resolveModel, set onWake(v) { onWake = v }, set onText(v) { onText = v }, set onError(v) { onError = v }, set onLevel(v) { onLevel = v }, set onDown(v) { onDown = v }, set onIdle(v) { onIdle = v } }
+module.exports = { start, stop, isRunning, listDevices, micCheck, shouldHear, enginePath, wakeArgs, resolveModel, set onWake(v) { onWake = v }, set onText(v) { onText = v }, set onError(v) { onError = v }, set onLevel(v) { onLevel = v }, set onDown(v) { onDown = v }, set onIdle(v) { onIdle = v } }

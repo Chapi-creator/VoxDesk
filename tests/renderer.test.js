@@ -103,6 +103,7 @@ function apiStub(over = {}) {
     getPreference: async () => null,
     setPreference: async () => {},
     listMicDevices: async () => [],
+    micCheck: async () => ({ ok: true, verdict: 'BIEN', clip: 0, peak: 0.3, speech: 0.5, consejo: 'Nivel sano.' }),
     ...over,
   }
 }

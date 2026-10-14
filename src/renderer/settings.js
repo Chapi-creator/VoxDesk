@@ -16,6 +16,8 @@ class SettingsManager {
     this.elements.wakeWord = document.getElementById('settings-wakeword')
     this.elements.aiKeywords = document.getElementById('settings-aikeywords')
     this.elements.mic = document.getElementById('settings-mic')
+    this.elements.micStatus = document.getElementById('settings-mic-status')
+    this.elements.micCheckBtn = document.getElementById('btn-mic-check')
     this.elements.patience = document.getElementById('settings-patience')
     this.elements.ptt = document.getElementById('settings-ptt')
     this.elements.followUp = document.getElementById('settings-followup')
@@ -178,6 +180,17 @@ class SettingsManager {
         await window.api.remoteRevoke()
         if (this.elements.remoteQr) this.elements.remoteQr.style.display = 'none'
         this._refreshRemote()
+      } catch {}
+    })
+    if (this.elements.micCheckBtn) this.elements.micCheckBtn.addEventListener('click', async () => {
+      try {
+        if (this.elements.micStatus) this.elements.micStatus.textContent = 'Grabando 3 s… habla normal.'
+        const r = await window.api.micCheck()
+        if (this.elements.micStatus) {
+          this.elements.micStatus.textContent = r && r.ok
+            ? `Micrófono ${r.verdict}: ${r.consejo}`
+            : 'No se pudo probar: ' + ((r && r.error) || 'reintenta')
+        }
       } catch {}
     })
     if (this.elements.modelDlBtn) this.elements.modelDlBtn.addEventListener('click', async () => {

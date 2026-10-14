@@ -162,6 +162,15 @@ def _lev(a, b):
         prev = cur
     return prev[len(b)]
 
+# Exacta con bordes de palabra (vale multi-palabra "oye vox"). Base de todo.
+def exact_wake(text, words):
+    lower = ' ' + text.lower() + ' '
+    for w in words or []:
+        wl = w.lower().strip()
+        if wl and re.search(r'(?<!\w)' + re.escape(wl) + r'(?!\w)', lower):
+            return True
+    return False
+
 # D: la palabra de Ajustes (sea cual sea) se detecta aunque Vosk la oiga con
 # 1 letra de error ("asistent"). SIN prefijos: "asiste"/"asista" son palabras
 # reales y disparaban solo el detector (falsos positivos por ruido). Puro.
@@ -171,7 +180,7 @@ def fuzzy_wake(text, words):
         wl = w.lower().strip()
         if not wl:
             continue
-        if re.search(r'(?<!\w)' + re.escape(wl) + r'(?!\w)', lower):
+        if exact_wake(text, [w]):
             return True
         if len(wl) <= 3 or ' ' in wl:
             continue
@@ -181,6 +190,17 @@ def fuzzy_wake(text, words):
             if _lev(tok, wl) <= max(1, len(wl) // 5):
                 return True
     return False
+
+# Antitormenta: mínimo 3 s entre despertares, máximo 5 por minuto.
+# Puro → testeable. Devuelve (allowed, hist_nueva, last_nuevo).
+def wake_allowed(hist, last_at, now, min_gap=3.0, max_per_min=5):
+    h = [t for t in (hist or []) if now - t < 60.0]
+    if now - (last_at or 0.0) < min_gap:
+        return False, h, last_at
+    if len(h) >= max_per_min:
+        return False, h, last_at
+    h = h + [now]
+    return True, h, now
 
 # D: gramática restringida para la escucha en espera. El decodificador SOLO
 # puede oír la palabra o [unk]: la detecta mejor y gasta menos CPU.
@@ -450,8 +470,85 @@ def self_test_wake():
     ok = ok and frame_clipped(struct.pack('<4h', 32767, -32767, 100, -100)) is True
     ok = ok and frame_clipped(struct.pack('<4h', 100, -200, 300, -400)) is False
     ok = ok and frame_clipped(b'') is False
+    # exact_wake: exacta sí (sirve para parciales), trozos no.
+    ok = ok and exact_wake('hola asistente', ['asistente']) is True
+    ok = ok and exact_wake('asist', ['asistente']) is False
+    ok = ok and exact_wake('oye vox ya', ['oye vox']) is True
+    # Antitormenta: pega junto no, con pausa sí; 5/min topa.
+    a1, h1, l1 = wake_allowed([], 0.0, 100.0)
+    a2, h2, l2 = wake_allowed(h1, l1, 101.0)
+    a3, h3, l3 = wake_allowed(h2, l2, 104.0)
+    ok = ok and a1 and not a2 and a3
+    h, l = [], 0.0
+    for i in range(5):
+        a, h, l = wake_allowed(h, l, 200.0 + i * 5.0)
+        ok = ok and a
+    a, h, l = wake_allowed(h, l, 225.0)
+    ok = ok and not a
     print(json.dumps({'ok': ok, 'fallos': bad}))
     return 0 if ok else 1
+
+
+def mic_check(seconds=3):
+    # Diagnóstico sin modelos: graba N s e informa saturación real + consejo.
+    # Sale por stdout como JSON (lo usa Ajustes > Diagnosticar micrófono).
+    if pyaudio is None:
+        print(json.dumps({'ok': False, 'error': 'sin pyaudio'}))
+        return 1
+    try:
+        p = pyaudio.PyAudio()
+        dev = None
+        for i in range(p.get_device_count()):
+            if p.get_device_info_by_index(i).get('maxInputChannels', 0) > 0:
+                dev = i
+                break
+        if dev is None:
+            print(json.dumps({'ok': False, 'error': 'sin micrófono'}))
+            return 1
+        st = p.open(format=pyaudio.paInt16, channels=1, rate=RATE, input=True,
+                    input_device_index=dev, frames_per_buffer=FRAME_SIZE)
+        n = int(seconds * RATE / FRAME_SIZE)
+        clip = 0
+        total = 0
+        peak = 0.0
+        speech = 0
+        for _ in range(n):
+            try:
+                data = st.read(FRAME_SIZE, exception_on_overflow=False)
+            except Exception:
+                break
+            if frame_clipped(data):
+                clip += 1
+            total += 1
+            lvl = rms_level(data)
+            peak = max(peak, lvl)
+            if lvl > 0.08:
+                speech += 1
+        try:
+            st.stop_stream(); st.close()
+        except Exception:
+            pass
+        try:
+            p.terminate()
+        except Exception:
+            pass
+        clip_ratio = (clip / total) if total else 0.0
+        if clip_ratio > 0.05:
+            verdict = 'SATURADO'
+            consejo = 'Baja la ganancia: Windows > Sonido > Entrada > volumen del micrófono.'
+        elif peak < 0.05:
+            verdict = 'BAJO'
+            consejo = 'Casi no se oye nada: sube la ganancia o acércate al micro.'
+        else:
+            verdict = 'BIEN'
+            consejo = 'Nivel sano.'
+        print(json.dumps({'ok': True, 'verdict': verdict, 'clip': round(clip_ratio, 3),
+                          'peak': round(peak, 3), 'speech': round(speech / max(total, 1), 3),
+                          'consejo': consejo}))
+        return 0
+    except Exception as e:
+        print(json.dumps({'ok': False, 'error': str(e)[:200]}))
+        return 1
 
 
 def self_test_capture():
@@ -522,6 +619,7 @@ def main():
     ap.add_argument('--self-test', action='store_true')
     ap.add_argument('--self-test-capture', action='store_true')
     ap.add_argument('--self-test-wake', action='store_true')
+    ap.add_argument('--mic-check', action='store_true')
     args = ap.parse_args()
     if args.wakewords:
         WAKE_WORDS = [w.lower() for w in args.wakewords]
@@ -535,6 +633,9 @@ def main():
 
     if args.self_test_wake:
         sys.exit(self_test_wake())
+
+    if args.mic_check:
+        sys.exit(mic_check())
 
     if args.list_devices:
         try:
@@ -588,6 +689,8 @@ def main():
         _clip_n = 0
         _clip_total = 0
         _clip_warned_at = 0.0
+        _wake_hist = []
+        _wake_last = 0.0
 
         while True:
             data = stream.read(FRAME_SIZE, exception_on_overflow=False)
@@ -636,13 +739,21 @@ def main():
                 continue
 
             if fuzzy_wake(text, WAKE_WORDS):
+                # Parciales: SOLO palabra exacta (un trozo con 1 letra menos
+                # espera al final, que trae confianza). Rápido y sin fantasmas.
+                if not final and not exact_wake(text, WAKE_WORDS):
+                    continue
                 # Puerta de calidad en finales: ruido con pinta de palabra no despierta.
-                # (Los parciales no traen confianza; ya van con fuzzy estricto.)
                 if final:
                     _qc, _qd = result_quality(result)
                     if _qc < WAKE_MIN_CONF or _qd < WAKE_MIN_DUR:
                         rec = make_rec(wake_grammar(WAKE_WORDS)) or vosk.KaldiRecognizer(_model, RATE)
                         continue
+                # Antitormenta: si el decodificador delira, no ametralla.
+                _wake_ok, _wake_hist, _wake_last = wake_allowed(_wake_hist, _wake_last, time.time())
+                if not _wake_ok:
+                    rec = make_rec(wake_grammar(WAKE_WORDS)) or vosk.KaldiRecognizer(_model, RATE)
+                    continue
                 emit(wake=True)
                 rec = make_rec(wake_grammar(WAKE_WORDS)) or vosk.KaldiRecognizer(_model, RATE)
 

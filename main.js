@@ -495,6 +495,14 @@ ipcMain.handle('audio:devices', async () => {
   return await wake.listDevices()
 })
 
+ipcMain.handle('audio:miccheck', async () => {
+  try {
+    return await wake.micCheck()
+  } catch (e) {
+    return { ok: false, error: e.message || String(e) }
+  }
+})
+
 ipcMain.handle('tts:stop', () => {
   tts.stop()
 })

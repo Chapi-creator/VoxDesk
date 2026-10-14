@@ -69,6 +69,7 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('semantic:progress', (_event, data) => callback(data))
   },
   listMicDevices: () => ipcRenderer.invoke('audio:devices'),
+  micCheck: () => ipcRenderer.invoke('audio:miccheck'),
   getPreference: (key) => ipcRenderer.invoke('memory:get', key),
   setPreference: (key, value) => ipcRenderer.invoke('memory:set', key, value),
   timersList: () => ipcRenderer.invoke('timers:list'),
