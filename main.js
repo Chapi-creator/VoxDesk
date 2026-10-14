@@ -78,14 +78,22 @@ function wakeOpts() {
   return opts
 }
 
-function setWakeMode(on) {
+function setWakeMode(on, opts = {}) {
   wakeMode = on
+  // Persistente: lo apagado sigue apagado tras reiniciar (antes se olvidaba).
+  if (opts.save !== false) {
+    try {
+      const cfg = config.load()
+      if (!!cfg.wakeEnabled !== !!on) config.save({ ...cfg, wakeEnabled: !!on })
+    } catch {}
+  }
   if (wakeRestartTimer) { clearTimeout(wakeRestartTimer); wakeRestartTimer = null }
   if (on) {
     const cfg = config.load()
     wake.start(cfg.wakeWord || 'asistente', wakeOpts())
   } else wake.stop()
   if (mainWindow) mainWindow.webContents.send('wake:toggle', on)
+  try { updateTray() } catch {}
 }
 
 function registerShortcuts() {
@@ -178,6 +186,7 @@ ipcMain.handle('followup:arm', () => {
   try {
     if (config.load().followUp === false) return false
   } catch {}
+  if (!wakeMode) return false // En pausa no hay escucha seguida.
   // Corta-loop: racha de "no entendí" por voz → sin follow-up 5 min.
   if (Date.now() < _missStreak.until) return false
   _followUntil = Date.now() + 8000
@@ -329,6 +338,19 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
   const _fu = followup.resolveFollowup(t, _ctx.lastAction)
   if (_fu) return await _handleOne(_fu, _depth + 1)
 
+  // Pausa/reanuda la escucha por orden (caja escrita, remoto o con micro abierto).
+  const _wt = wake.parseWakeToggle(t)
+  if (_wt) {
+    setWakeMode(_wt === 'on')
+    return {
+      success: true,
+      message: _wt === 'on'
+        ? 'Escuchando de nuevo.'
+        : 'En pausa: no te escucho. Reanuda desde la bandeja, el botón, o escríbeme "reanuda la escucha".',
+      speak: true,
+    }
+  }
+
   const parsed = parser.parse(t)
   const allowLaunch = parsed && parsed.command === COMMANDS.LAUNCH
   if (parsed && (allowLaunch || (!t.includes(' y ') && !t.includes(' luego ')))) {
@@ -438,9 +460,12 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
   }
 
   if (_cfg.provider === 'local' || _cfg.apiKey) {
-    if (mainWindow) mainWindow.webContents.send('model:info', `${_cfg.provider || 'gemini'}/${_cfg.model || '?'}`)
-    const answer = await llm.ask(t)
-    if (answer) return await _processLlmAnswer(answer)
+    // Anti-basura: restos ("ah", "mi") jamás van a la IA (parloteaba con ellos).
+    if (understand.worthAsking(t)) {
+      if (mainWindow) mainWindow.webContents.send('model:info', `${_cfg.provider || 'gemini'}/${_cfg.model || '?'}`)
+      const answer = await llm.ask(t)
+      if (answer) return await _processLlmAnswer(answer)
+    }
   }
   // B1+C: no-sé honesto. Fuzzy sugiere (≥0.35); la red aporta otra opción
   // (≥SEM_ASK) y, si no hay nada, pregunta ejecutable con "sí" (nunca ejecuta sola).
@@ -595,6 +620,11 @@ function isDangerous(psCode) {
 }
 
 async function _processLlmAnswer(answer) {
+  // Los errores de la IA no se hablan (ensuciaban el historial y el loop).
+  if (/^\s*(error(\s*\(|\s*:|\s+de)?|fall[óo]|lo siento, hubo)/i.test(answer || '')) {
+    const short = String(answer || '').replace(/\s+/g, ' ').trim().slice(0, 120)
+    return { success: false, message: 'Falló la IA. Revisa tu key o internet.' + (short ? ` (${short})` : ''), speak: false }
+  }
   const psMatch = answer.match(/```powershell\n?([\s\S]*?)```/)
   if (psMatch) {
     const psCode = psMatch[1].trim()
@@ -1080,6 +1110,8 @@ async function lifeTick() {
     const a = life.evaluate(ctx)
     mood.touchSeen()
     if (!a) return
+    // En pausa: solo lo crítico (batería) habla; rutinas/timers ya corrieron arriba.
+    if (!wakeMode && a.id !== 'battery') return
     life.applyStamps((k, v) => memory.set(k, v), a.stamp)
     if (a.streakDone) mood.markStreakDone()
     // Fase 14b: briefing matutino con datos reales (1 vez al día, best-effort).
@@ -1143,7 +1175,9 @@ app.whenReady().then(async () => {
   }
 
   const startWake = () => {
-    setWakeMode(true)
+    let on = true
+    try { on = config.load().wakeEnabled !== false } catch {}
+    setWakeMode(on, { save: false })
     require('./src/main/commands/timer').loadPending()
   }
   setImmediate(() => {
@@ -1197,8 +1231,18 @@ app.whenReady().then(async () => {
     : nativeImage.createFromDataURL('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><circle cx="8" cy="8" r="6" fill="%234fc3f7"/></svg>')
   tray = new Tray(icon)
   tray.setToolTip('VoxDesk')
-  const ctxMenu = Menu.buildFromTemplate([
+  updateTray()
+  tray.on('click', () => { mainWindow?.show(); mainWindow?.focus() })
+})
+
+// Bandeja con estado real: pausar/reanudar escucha + tooltip. Se reconstruye al cambiar.
+function updateTray() {
+  try {
+    if (!tray) return
+    tray.setToolTip(wakeMode ? 'VoxDesk: escuchando' : 'VoxDesk: en pausa (no escucha)')
+    tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Mostrar', click: () => { mainWindow?.show(); mainWindow?.focus() } },
+    { label: wakeMode ? '⏸ Pausar escucha' : '▶ Reanudar escucha', click: () => setWakeMode(!wakeMode) },
     { type: 'separator' },
     { label: '🎤 Escuchar', accelerator: 'Ctrl+Shift+V', click: () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); mainWindow.webContents.send('status:update', 'toggle-recording') } } },
     { label: '🛑 Silenciar micrófono', click: () => { exec('powershell -NoProfile -Command "$d = Get-CimInstance -Namespace root/CIMV2 -ClassName Win32_SoundDevice | Select-Object -First 1; if ($d) { Invoke-CimMethod -InputObject $d -MethodName SetDeviceState -Arguments @{State = 0} }"', { timeout: 5000 }) } },
@@ -1213,10 +1257,9 @@ app.whenReady().then(async () => {
     { label: 'ℹ️ Acerca de VoxDesk', click: () => { dialog.showMessageBox(mainWindow, { type: 'info', title: 'Acerca de VoxDesk', message: 'VoxDesk ' + app.getVersion(), detail: 'Asistente de voz para Windows.\nEl audio se procesa localmente en tu PC.\n\nPolítica de privacidad: PRIVACY.md incluido en el proyecto.' }) } },
     { type: 'separator' },
     { label: 'Salir', click: () => app.quit() },
-  ])
-  tray.setContextMenu(ctxMenu)
-  tray.on('click', () => { mainWindow?.show(); mainWindow?.focus() })
-})
+  ]))
+  } catch {}
+}
 
 app.on('window-all-closed', () => {
   wake.stop(); server?.close(); globalShortcut.unregisterAll(); app.quit()

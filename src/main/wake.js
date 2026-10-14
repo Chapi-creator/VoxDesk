@@ -115,6 +115,16 @@ let _retryCount = 0
 let _startTime = 0
 let _wakeWord = 'asistente'
 
+// Puro: "pausa la escucha"->off, "reanuda la escucha"->on, resto null.
+// OJO: por voz solo sirve pausar (apagado no oye); reanudar va por
+// bandeja, botón o caja escrita.
+function parseWakeToggle(text) {
+  const t = String(text || '').toLowerCase().trim()
+  if (/^(pausa|pausar|det[eé]n|apaga|apagar|silencia|desactiva|deja de|para de)\b.*\b(escucha|micro|o[ií]dos|detecci[oó]n)/.test(t)) return 'off'
+  if (/^(reanuda|reanudar|activa|activar|enciende|encender|vuelve)\b.*\b(escucha|micro|o[ií]dos|detecci[oó]n|vox\b)/.test(t)) return 'on'
+  return null
+}
+
 // Pura y testeable: argv para wake.exe/wake.py.
 function wakeArgs(wakeWord, opts = {}) {
   const args = []
@@ -247,4 +257,4 @@ function enginePath() {
   return fs.existsSync(WAKE_EXE) ? WAKE_EXE : null
 }
 
-module.exports = { start, stop, isRunning, listDevices, micCheck, cleanDevices, cleanDeviceName, shouldHear, enginePath, wakeArgs, resolveModel, set onWake(v) { onWake = v }, set onText(v) { onText = v }, set onError(v) { onError = v }, set onLevel(v) { onLevel = v }, set onDown(v) { onDown = v }, set onIdle(v) { onIdle = v } }
+module.exports = { start, stop, isRunning, listDevices, micCheck, cleanDevices, cleanDeviceName, parseWakeToggle, shouldHear, enginePath, wakeArgs, resolveModel, set onWake(v) { onWake = v }, set onText(v) { onText = v }, set onError(v) { onError = v }, set onLevel(v) { onLevel = v }, set onDown(v) { onDown = v }, set onIdle(v) { onIdle = v } }

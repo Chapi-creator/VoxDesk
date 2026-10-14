@@ -1796,6 +1796,34 @@ test('cleanDevices: fuera duplicados, mappers y basura', () => {
   assert.ok(out.every(d => !/[ÃÂ]/.test(d.name)))
 })
 
+console.log('\nFIX: off real + IA sin basura')
+
+test('parseWakeToggle: pausa/reanuda solo con palabra de escucha', () => {
+  const wake = require('../src/main/wake')
+  assert.equal(wake.parseWakeToggle('pausa la escucha'), 'off')
+  assert.equal(wake.parseWakeToggle('apaga el micro'), 'off')
+  assert.equal(wake.parseWakeToggle('silencia la detección'), 'off')
+  assert.equal(wake.parseWakeToggle('reanuda la escucha'), 'on')
+  assert.equal(wake.parseWakeToggle('activa los oídos'), 'on')
+  assert.equal(wake.parseWakeToggle('para escuchar música'), null)
+  assert.equal(wake.parseWakeToggle('qué hora es'), null)
+  assert.equal(wake.parseWakeToggle('apaga el equipo'), null)
+  assert.equal(wake.parseWakeToggle('silencia la música'), null)
+  assert.equal(wake.parseWakeToggle('detente'), null)
+})
+
+test('worthAsking: basura nunca va a la IA', () => {
+  const understand = require('../src/main/understand')
+  for (const t of ['ah', 'mi', 'h', 'eh', 'para', 'sí', 'no', 'apaga']) assert.equal(understand.worthAsking(t), false, t)
+  for (const t of ['qué hora es', 'cuéntame algo', 'cómo se dice casa en inglés', 'por qué el cielo es azul', 'dime la verdad']) assert.equal(understand.worthAsking(t), true, t)
+})
+
+test('config trae wakeEnabled por defecto', () => {
+  const config = require('../src/main/config')
+  config.setUserDataPath(require('os').tmpdir())
+  assert.equal(config.load().wakeEnabled, true)
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

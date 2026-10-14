@@ -1728,6 +1728,7 @@ function getHelp() {
       'qué recuerdas / olvida [clave]',
       'aprende [frase] para [acción]',
       'olvida comando [frase] / lista comandos aprendidos',
+      'pausa la escucha / reanuda la escucha (viendo videos, pausa desde bandeja)',
       'Pregunta lo que sea con "gemini"/"chapi"/"ia" al inicio',
     ]},
   ]

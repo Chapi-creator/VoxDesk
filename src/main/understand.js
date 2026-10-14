@@ -100,6 +100,18 @@ function route(text, extra = []) {
   return top && top.conf > 0 ? top : null
 }
 
+// ¿Merece preguntar a la IA? La basura ("ah", "mi", "h") jamás va a Gemini:
+// antes parloteaba con cualquier resto. Solo peticiones reales. Puro.
+const ASK2 = /^(que|cual|cuales|cuando|donde|como|porque|por que|cuanto|cuanta|dime|explica|explicitame|cuentame|resume|traduce|analiza|opinas|quien|hay|es|son|puedes|sabes|tienes|hace|paso|pasa|significa)/
+function worthAsking(text) {
+  const t = normalize(text)
+  if (!t) return false
+  const n = t.split(' ').length
+  if (n >= 3) return true
+  if (n === 2) return ASK2.test(t)
+  return false
+}
+
 // Meta-órdenes que operan sobre lo anterior (no se guardan ni cachean).
 function isMeta(text) {
   const t = String(text || '')
@@ -109,4 +121,4 @@ function isMeta(text) {
     || /^(y\s+)?eso\s+(que significa|qué significa|qué es)$/i.test(t)
 }
 
-module.exports = { normalize, lev, sim, route, routeTop, isMeta, INTENTS, HI: 0.82, MID: 0.6 }
+module.exports = { normalize, lev, sim, route, routeTop, isMeta, worthAsking, INTENTS, HI: 0.82, MID: 0.6 }
