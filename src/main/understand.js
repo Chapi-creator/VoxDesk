@@ -2,10 +2,11 @@
 // Puro → testeable. Sin dependencias.
 const SYNONYMS = {
   compu: 'equipo', computadora: 'equipo', computador: 'equipo', pc: 'equipo', ordenador: 'equipo',
+  maquina: 'equipo', aparato: 'equipo', laptop: 'equipo', portatil: 'equipo',
   musica: 'musica', cancion: 'cancion', rola: 'cancion',
   screenshot: 'captura', pantallazo: 'captura', foto: 'captura',
   apagate: 'apaga', prendete: 'enciende',
-  ordena: 'organiza', limpia: 'limpia',
+  ordena: 'organiza', limpia: 'limpia', prende: 'enciende',
 }
 
 // intent -> ejemplos de verbo (minúsculas, sin tildes) + frase canónica
@@ -57,11 +58,11 @@ function sim(a, b) {
   return m ? 1 - lev(a, b) / m : 0
 }
 
-// Compara el inicio del texto (tantas palabras como el ejemplo) → {id, conf, args}
-// extra: [{id, canon, ex:[...]}] p.ej. desde smart.getPatternExamples().
-function route(text, extra = []) {
+// Compara el inicio del texto (tantas palabras como el ejemplo) → [{id, conf, args, canon}]
+// distintos por canon, ordenados. route() es el top-1 (comportamiento intacto).
+function routeTop(text, extra = [], n = 3) {
   const norm = normalize(text)
-  if (!norm) return null
+  if (!norm) return []
   const words = norm.split(' ')
   const tables = INTENTS.map(i => ({ id: i.id, canon: i.canon, ex: i.ex }))
   for (const e of extra) {
@@ -69,19 +70,33 @@ function route(text, extra = []) {
       tables.push({ id: e.id || 'pat', canon: e.canon || e.ex[0], ex: e.ex })
     }
   }
-  let best = null
+  const cands = []
   for (const intent of tables) {
+    let bestConf = 0, bestArgs = ''
     for (const rawEx of intent.ex) {
       const ex = normalize(rawEx)
-      const n = ex.split(' ').length
-      const head = words.slice(0, n).join(' ')
+      const k = ex.split(' ').length
+      const head = words.slice(0, k).join(' ')
       const c = sim(head, ex)
-      if (!best || c > best.conf) {
-        best = { id: intent.id, conf: c, args: words.slice(n).join(' '), canon: intent.canon }
-      }
+      if (c > bestConf) { bestConf = c; bestArgs = words.slice(k).join(' ') }
     }
+    if (bestConf > 0) cands.push({ id: intent.id, conf: bestConf, args: bestArgs, canon: intent.canon })
   }
-  return best && best.conf > 0 ? best : null
+  cands.sort((a, b) => b.conf - a.conf)
+  const seen = new Set()
+  const out = []
+  for (const c of cands) {
+    if (seen.has(c.canon)) continue
+    seen.add(c.canon)
+    out.push(c)
+    if (out.length >= (n || 3)) break
+  }
+  return out
+}
+
+function route(text, extra = []) {
+  const top = routeTop(text, extra, 1)[0]
+  return top && top.conf > 0 ? top : null
 }
 
 // Meta-órdenes que operan sobre lo anterior (no se guardan ni cachean).
@@ -93,4 +108,4 @@ function isMeta(text) {
     || /^(y\s+)?eso\s+(que significa|qué significa|qué es)$/i.test(t)
 }
 
-module.exports = { normalize, lev, sim, route, isMeta, INTENTS, HI: 0.82, MID: 0.6 }
+module.exports = { normalize, lev, sim, route, routeTop, isMeta, INTENTS, HI: 0.82, MID: 0.6 }

@@ -18,6 +18,7 @@ const mood = require('./src/main/mood')
 const life = require('./src/main/life')
 const memory = require('./src/main/memory')
 const logger = require('./src/main/logger')
+const followup = require('./src/main/followup')
 
 const MIME = {
   '.html': 'text/html', '.js': 'application/javascript',
@@ -264,6 +265,26 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
     return await _handleOne(_ctx.lastAction, _depth + 1)
   }
 
+  // B1: "sí" ejecuta lo que pregunté; "no" lo cancela (90 s para responder).
+  const _pending = memory.get('vox_pending')
+  if (_pending && _pending.canon) {
+    const dec = followup.checkPending(t, _pending)
+    if (dec && dec.do === 'run') {
+      memory.del('vox_pending')
+      return await _handleOne(dec.command, _depth + 1)
+    }
+    if (dec && dec.do === 'cancel') {
+      memory.del('vox_pending')
+      return { success: true, message: 'Cancelado. ¿Otra cosa?', speak: true }
+    }
+    if (dec && dec.do === 'expired') memory.del('vox_pending')
+    else if (!dec) memory.del('vox_pending') // dijo otra cosa: la pregunta muere
+  }
+
+  // B1: continuaciones ("a las 8", "y en Madrid") sobre lo último hecho.
+  const _fu = followup.resolveFollowup(t, _ctx.lastAction)
+  if (_fu) return await _handleOne(_fu, _depth + 1)
+
   const parsed = parser.parse(t)
   const allowLaunch = parsed && parsed.command === COMMANDS.LAUNCH
   if (parsed && (allowLaunch || (!t.includes(' y ') && !t.includes(' luego ')))) {
@@ -324,9 +345,10 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
   }
 
   // Fase 13: fuzzy — entiende aunque la frase varíe ("apaga la compu").
-  // Alta confianza ejecuta vía frase canónica; media pregunta; baja sigue al LLM.
-  // Fase 16B1: primero la caché aprendida (tus frases exactas ganan al fuzzy).
+  // Alta confianza ejecuta vía frase canónica; media pregunta (y "sí" la ejecuta);
+  // baja sigue al LLM. Fase 16B1: primero la caché aprendida.
   // Deuda menor: los ejemplos viven en los patrones (fuente única).
+  const XTRA = smartExec.getPatternExamples().map(e => ({ id: 'pat', canon: e.canon, ex: e.ex }))
   if (!_fromFuzzy) {
     const norm = understand.normalize(t)
     const cache = memory.getCache()
@@ -338,13 +360,14 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
     if (bestKey && bestSim >= 0.8 && cache[bestKey].action !== t) {
       return await _handleOne(cache[bestKey].action, _depth + 1, true)
     }
-    const XTRA = smartExec.getPatternExamples().map(e => ({ id: 'pat', canon: e.canon, ex: e.ex }))
     const fz = understand.route(t, XTRA)
     if (fz && fz.conf >= understand.HI) {
       return await _handleOne(fz.canon + (fz.args ? ' ' + fz.args : ''), _depth + 1, true)
     }
     if (fz && fz.conf >= understand.MID) {
-      return { success: true, message: `¿Quisiste decir "${fz.canon}"? Dilo así y lo hago.`, speak: true }
+      // B1: guardo lo preguntado — un "sí" lo ejecuta sin repetir.
+      try { memory.set('vox_pending', { canon: fz.canon + (fz.args ? ' ' + fz.args : ''), at: Date.now() }) } catch {}
+      return { success: true, message: `¿Quisiste decir "${fz.canon}"? Di sí y lo hago.`, speak: true }
     }
   }
 
@@ -353,7 +376,9 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
     const answer = await llm.ask(t)
     if (answer) return await _processLlmAnswer(answer)
   }
-  return { success: false, message: `No entendí: "${t}". Prueba con algo simple como "qué hora es", o abre la guía ❓ para ver todo lo que sé hacer.`, speak: true }
+  // B1: no-sé honesto con las 2 opciones más cercanas (bajo MID, sobre 0.35).
+  const _sug = understand.routeTop(t, XTRA, 3).filter(s => s.conf >= 0.35 && s.conf < understand.MID).slice(0, 2).map(s => `"${s.canon}"`)
+  return { success: false, message: `No entendí: "${t}".` + (_sug.length ? ` ¿Quizás: ${_sug.join(' o ')}?` : ' Prueba con algo simple como "qué hora es", o abre la guía ❓ para ver todo lo que sé hacer.'), speak: true }
 }
 
 function _r(obj) { obj.recording = memory.isRecording(); return obj }
@@ -653,6 +678,7 @@ async function handleAndTrack(transcript, depth = 0) {
   try {
     if (r && r.success) {
       mood.addMood(4)
+      try { memory.del('vox_pending') } catch {} // B1: éxito mata preguntas viejas
       const s = mood.bumpStreak()
       if (s.n === 5) mood.addMood(10)
     } else if (r && !r.success && r.message && r.message.startsWith('No entendí')) {

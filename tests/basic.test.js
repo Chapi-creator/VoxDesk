@@ -1132,6 +1132,90 @@ test('modelo completo pasa', () => {
   fs.rmSync(tmp, { recursive: true, force: true })
 })
 
+console.log('\nB1: followup (sí/no + continuaciones)')
+const followup = require('../src/main/followup')
+
+test('sí/no en español', () => {
+  assert.ok(followup.isYes('sí'))
+  assert.ok(followup.isYes('Si'))
+  assert.ok(followup.isYes('dale'))
+  assert.ok(followup.isYes('vale'))
+  assert.ok(!followup.isYes('qué hora es'))
+  assert.ok(followup.isNo('no'))
+  assert.ok(followup.isNo('mejor no'))
+  assert.ok(followup.isNo('para'))
+  assert.ok(!followup.isNo('sí'))
+})
+
+test('pending: run/cancel/expirado', () => {
+  const p = { canon: 'apaga el equipo', at: Date.now() }
+  assert.deepEqual(followup.checkPending('sí', p).do, 'run')
+  assert.equal(followup.checkPending('sí', p).command, 'apaga el equipo')
+  assert.equal(followup.checkPending('no', p).do, 'cancel')
+  assert.equal(followup.checkPending('qué hora es', p), null)
+  assert.equal(followup.checkPending('sí', null), null)
+  const old = { canon: 'x', at: Date.now() - followup.PENDING_TTL - 1000 }
+  assert.equal(followup.checkPending('sí', old).do, 'expired')
+})
+
+test('followup clima con ciudad', () => {
+  assert.equal(followup.resolveFollowup('y en Madrid', 'clima'), 'clima en Madrid')
+  assert.equal(followup.resolveFollowup('en Barcelona', 'clima en Sevilla'), 'clima en Barcelona')
+  assert.equal(followup.resolveFollowup('a las 8', 'clima'), null)
+  assert.equal(followup.resolveFollowup('y en Madrid', 'qué hora es'), null)
+})
+
+test('followup alarma re-hora y hora nueva', () => {
+  assert.equal(followup.resolveFollowup('a las 8', 'pon alarma a las 7'), 'pon alarma a las 8')
+  assert.equal(followup.resolveFollowup('cámbiala a las 9', 'alarma a las 7'), 'alarma a las 9')
+  assert.equal(followup.resolveFollowup('en 10 minutos', 'recuérdame llamar'), 'recuérdame llamar en 10 minutos')
+  assert.equal(followup.resolveFollowup('a las 8', 'qué hora es'), null)
+  assert.equal(followup.resolveFollowup('hola', 'pon alarma a las 7'), null)
+})
+
+console.log('\nB1: routeTop + sinónimos + calculadora en español')
+
+test('routeTop ordena y route sigue igual', () => {
+  const understand = require('../src/main/understand')
+  const top = understand.routeTop('apaga la compu', [], 3)
+  assert.ok(Array.isArray(top) && top.length >= 1)
+  assert.equal(top[0].canon, 'apaga el equipo')
+  for (let i = 1; i < top.length; i++) assert.ok(top[i - 1].conf >= top[i].conf)
+  assert.equal(new Set(top.map(x => x.canon)).size, top.length)
+  const one = understand.route('apaga la compu', [])
+  assert.equal(one.canon, top[0].canon)
+})
+
+test('sinónimos nuevos: máquina y aparato', () => {
+  const understand = require('../src/main/understand')
+  assert.equal(understand.route('apaga la maquina', []).id, 'apaga')
+  assert.equal(understand.route('apaga el aparato', []).id, 'apaga')
+})
+
+test('sugerencias bajo MID', () => {
+  const understand = require('../src/main/understand')
+  const smart = require('../src/main/smart-exec')
+  const XTRA = smart.getPatternExamples().map(e => ({ id: 'pat', canon: e.canon, ex: e.ex }))
+  const sug = understand.routeTop('pon volumne alto', XTRA, 3).filter(s => s.conf >= 0.35 && s.conf < understand.MID)
+  assert.ok(sug.length >= 1, 'sugiere algo parecido al volumen')
+  assert.ok(sug[0].canon.toLowerCase().includes('volumen'))
+})
+
+await atest('calculadora entiende español', async () => {
+  const smart = require('../src/main/smart-exec')
+  const run = async (txt) => {
+    const h = smart.route(txt)[0]
+    assert.ok(h, 'rutea ' + txt)
+    return String(await h.pattern.run(h.match))
+  }
+  assert.ok((await run('calcula 12 * 8')).includes('96'))
+  assert.ok((await run('cuánto es 100 / 4')).includes('25'))
+  assert.ok((await run('calcula 15 por ciento de 240')).includes('36'))
+  assert.ok((await run('cuánto es 12 por 8')).includes('96'))
+  assert.ok((await run('calcula 7 entre 2')).includes('3.5'))
+  assert.ok((await run('calcula 50 menos 8')).includes('42'))
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

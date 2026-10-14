@@ -178,6 +178,7 @@ const PATTERNS = [
     run: (m) => `Set-Content -Path ${psStr(m[2].trim())} -Value ${psStr(m[3])} -Encoding UTF8 -Force`,
     msg: (m) => `Archivo "${m[2]}" creado` },
   { match: /busca\s+archivos?\s+(?:por\s+)?(?:nombre|llamados?)\s+(.+)/i,
+    ex: ['busca archivos llamados fotos'],
     run: (m) => `Get-ChildItem -Recurse -Filter "*${m[1]}*" -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime | Format-Table -AutoSize | Out-String`,
     capture: true,
     msg: (m) => `Buscando archivos "${m[1]}"` },
@@ -213,10 +214,12 @@ const PATTERNS = [
 
   // --- CALCULATOR / MATH ---
   { match: /(calcula|cu[aá]nto\s+es|opera|resuelve)\s+(.+)/i,
+    ex: ['calcula 12 * 8', 'cuánto es 100 / 4', 'calcula 15 por ciento de 240'],
     run: (m) => {
       try {
-        const expr = m[2].replace(/x/g, '*').replace(/÷/g, '/').replace(/,/g, '.').replace(/[^0-9+\-*/.() ]/g, '')
+        const expr = m[2].replace(/por ciento de/gi, '/100*').replace(/por ciento/gi, '/100').replace(/(?<![a-záéíóú])por(?![a-záéíóú])/gi, '*').replace(/entre/gi, '/').replace(/m[aá]s/gi, '+').replace(/menos/gi, '-').replace(/x/g, '*').replace(/÷/g, '/').replace(/,/g, '.').replace(/[^0-9+\-*/.() ]/g, '')
         const result = Function('"use strict"; return (' + expr + ')')()
+        if (typeof result !== 'number' || !isFinite(result)) throw new Error('no numérico')
         return `echo ${result}`
       } catch {
         return `echo No pude calcular la expresión`
@@ -235,6 +238,7 @@ const PATTERNS = [
     ex: ['todos los días a las 8 dime el clima', 'recuérdame todos los días a las 9 tomar agua'],
     msg: 'Programando rutina' },
   { match: /temporizador|cronometro|cuenta\s+(atr[aá]s|regresiva)\s+(\d+)\s*(minutos?|segundos?|horas?)?/i,
+    ex: ['temporizador 5 minutos', 'cuenta atrás 10 segundos'],
     run: (m) => {
       const num = parseInt(m[2])
       const unit = m[3]?.toLowerCase() || 'segundos'
@@ -246,6 +250,7 @@ const PATTERNS = [
 
   // --- NEWS ---
   { match: /cu[eé]ntame (las )?noticias|dime titulares|titulares|noticias (de hoy|del d[ií]a)/i,
+    ex: ['cuéntame las noticias', 'dime titulares'],
     handler: async () => {
       try {
         const news = require('./news')
@@ -259,12 +264,14 @@ const PATTERNS = [
     priority: 10,
     msg: 'Leyendo titulares' },
   { match: /noticias\s*(?:de\s+actualidad|del\s+d[ií]a)?|qu[eé]\s+(pasó|pasa)\s+en\s+el\s+mundo|dame\s+las\s+noticias/i,
+    ex: ['qué pasa en el mundo'],
     run: (m) => `$r = Invoke-WebRequest -Uri "https://newsapi.org/v2/top-headlines?country=us&pageSize=5&apiKey=demo" -UseBasicParsing -ErrorAction SilentlyContinue; if ($r) { ($r.Content | ConvertFrom-Json).articles | ForEach-Object { Write-Output "$($_.title) - $($_.source.name)" } } else { Write-Output "No pude obtener noticias. Configura una API key en newsapi.org" }`,
     capture: true,
     msg: 'Obteniendo noticias' },
 
   // --- WEB SEARCH (quick URLs) ---
   { match: /abre\s+(reddit|twitter|facebook|instagram|linkedin|youtube|twitch|gmail|drive|docs|amazon|github|noticias)/i,
+    ex: ['abre youtube', 'abre gmail'],
     run: (m) => {
       const sites = {
         reddit: 'https://reddit.com', twitter: 'https://twitter.com',
@@ -352,7 +359,8 @@ const PATTERNS = [
     msg: (m) => `Imprimiendo ${m[1]}` },
 
   // --- CALENDAR INTEGRATION (reminder events) ---
-  { match: /qu[eé]\s+eventos?\s+tengo|mis\s+recordatorios|pr[oó]ximos?\s+eventos/i,
+  { match: /qu[eé]\s+(eventos?|recordatorios?)\s+tengo|mis\s+recordatorios|pr[oó]ximos?\s+eventos/i,
+    ex: ['qué recordatorios tengo', 'mis recordatorios'],
     run: `$tasks = Get-ScheduledTask -TaskName "AI_Reminder_*" -ErrorAction SilentlyContinue | Select-Object @{N='Recordatorio';E={$_.TaskName -replace '^AI_Reminder_',''}}, NextRunTime; if ($tasks) { $tasks | Format-Table -AutoSize | Out-String } else { Write-Output 'No hay recordatorios programados' }`,
     capture: true,
     msg: 'Consultando recordatorios' },
@@ -371,12 +379,15 @@ const PATTERNS = [
 
   // --- SEARCH / WEB ---
   { match: /busca\s+(en\s+)?google\s+(.+)/i,
+    ex: ['busca en google gatos', 'busca google recetas'],
     run: (m) => `start chrome "https://www.google.com/search?q=${encodeURIComponent(m[2])}"`,
     msg: (m) => `Buscando "${m[2]}" en Google` },
   { match: /busca\s+(en\s+)?youtube\s+(.+)/i,
+    ex: ['busca en youtube música', 'busca youtube tutoriales'],
     run: (m) => `start chrome "https://www.youtube.com/results?search_query=${encodeURIComponent(m[2])}"`,
     msg: (m) => `Buscando "${m[2]}" en YouTube` },
   { match: /traduce?\s+(.+?)\s+(?:a|al)\s+(.+)/i,
+    ex: ['traduce hola al inglés'],
     run: (m) => `start chrome "https://translate.google.com/?sl=auto&tl=${encodeURIComponent(m[2])}&text=${encodeURIComponent(m[1])}"`,
     msg: (m) => `Traduciendo "${m[1]}" a ${m[2]}` },
 
@@ -394,11 +405,13 @@ const PATTERNS = [
     msg: (m) => `Brillo al ${m[2]}%` },
   // --- NETWORK ---
   { match: /wifi\s+(on|off|enciende|apaga|activa|desactiva)/i,
+    ex: ['wifi off', 'wifi on'],
     run: (m) => `netsh interface set interface "${getWifiAdapter()}" ${m[1] === 'on' || m[1] === 'enciende' || m[1] === 'activa' ? 'enabled' : 'disabled'}`,
     msg: (m) => `WiFi ${m[1] === 'on' || m[1] === 'enciende' || m[1] === 'activa' ? 'activado' : 'desactivado'}` },
 
   // --- SETTINGS ---
   { match: /abre\s+(configuraci[óo]n|ajustes|settings)(\s+de\s+(.+))?/i,
+    ex: ['abre configuración'],
     run: (m) => openSettings(m[3]),
     msg: (m) => `Abriendo configuración${m[3] ? ` de ${m[3]}` : ''}` },
   { match: /abre\s+(panel\s+de\s+control|control|panel)/i,
@@ -462,6 +475,7 @@ const PATTERNS = [
     capture: true,
     msg: 'Buscando archivos' },
   { match: /abre\s+(el\s+)?(excel|word|pdf|documento|archivo|ppt|powerpoint)\s+de\s+(.+)/i,
+    ex: ['abre el excel de ventas'],
     run: (m) => smartOpen(m[2], m[3]),
     msg: (m) => `Buscando ${m[2]} de ${m[3]}` },
 
@@ -502,6 +516,7 @@ const PATTERNS = [
 
   // --- WINDOW CAPTURE ---
   { match: /captura\s+(la\s+)?(pantalla|imagen|pantallazo)/i,
+    ex: ['captura la pantalla', 'captura pantalla'],
     run: screenshot,
     msg: 'Captura guardada en escritorio' },
 
@@ -527,6 +542,7 @@ const PATTERNS = [
     ex: ['vacía la papelera', 'vaciar papelera', 'limpia la papelera'],
     msg: 'Papelera vaciada' },
   { match: /bloquea\s+(el\s+)?(equipo|pc|sesi[óo]n)?/i,
+    ex: ['bloquea el equipo'],
     run: `rundll32.exe user32.dll,LockWorkStation`,
     msg: 'Equipo bloqueado' },
   { match: /suspende|duerme|sleep|pon\s+a\s+dormir/i,
@@ -663,6 +679,7 @@ public class MK {
 "@; [MK]::keybd_event(0xB0,0,0,0); [MK]::keybd_event(0xB0,0,2,0)`,
     msg: 'Play/Pause' },
   { match: /sube\s+(el\s+)?(volumen|sonido)|m[aá]s\s+(alto|fuerte|volumen)|volumen\s+(sube|arriba|\+)/i,
+    ex: ['sube el volumen'],
     run: `Add-Type -ErrorAction SilentlyContinue @"
 using System;
 using System.Runtime.InteropServices;
@@ -672,6 +689,7 @@ public class MK {
 "@; for($i=0;$i<5;$i++){[MK]::keybd_event(0xAF,0,0,0);[MK]::keybd_event(0xAF,0,2,0)}`,
     msg: 'Volumen +' },
   { match: /baja\s+(el\s+)?(volumen|sonido)|m[eé]nos\s+(alto|fuerte|volumen)|volumen\s+(baja|abajo|\-)/i,
+    ex: ['baja el volumen'],
     run: `Add-Type -ErrorAction SilentlyContinue @"
 using System;
 using System.Runtime.InteropServices;
@@ -681,6 +699,7 @@ public class MK {
 "@; for($i=0;$i<5;$i++){[MK]::keybd_event(0xAE,0,0,0);[MK]::keybd_event(0xAE,0,2,0)}`,
     msg: 'Volumen -' },
   { match: /(silencia|mut[eé]a|silencio|mute)\s*(el\s+)?(volumen|sonido|audio|m[uú]sica)?/i,
+    ex: ['silencio', 'silencia la música'],
     run: `Add-Type -ErrorAction SilentlyContinue @"
 using System;
 using System.Runtime.InteropServices;
@@ -802,6 +821,7 @@ public class MK {
 
   // --- SEARCH SHORTCUTS ---
   { match: /busca\s+(en\s+)?(wikipedia|amazon|mercadolibre|ebay|aliexpress|walmart|bestbuy)\s+(.+)/i,
+    ex: ['busca en wikipedia méxico'],
     run: (m) => {
       const sites = {
         wikipedia: 'https://es.wikipedia.org/wiki/',
@@ -822,6 +842,7 @@ public class MK {
 
   // --- OPEN COMMON SITES ---
   { match: /abre\s+(mercadolibre|ebay|aliexpress|walmart|bestbuy|amazon|wikipedia|reddit|twitter|facebook|instagram|linkedin|youtube|twitch|gmail|drive|docs|github|stackoverflow|whatsapp)/i,
+    ex: ['abre mercadolibre', 'abre whatsapp'],
     run: (m) => {
       const sites = {
         mercadolibre: 'https://mercadolibre.com',
@@ -851,6 +872,7 @@ public class MK {
 
   // --- WEATHER EXTENDED ---
   { match: /va\s+a\s+(llover|nevar|granizar)|pron[oó]stico\s+(?:del\s+)?(?:tiempo|clima)\s*(.+)?|c[oó]mo\s+estar[aá]\s+el\s+(clima|tiempo)\s+(.+)?|qu[eé]\s+(temperatura|clima)\s+(har[aá]|va\s+a\s+hacer)\s+(.+)?/i,
+    ex: ['va a llover', 'pronóstico del clima'],
     run: (m) => {
       const city = (m[2] || m[4] || m[6] || '').trim() || 'Ciudad de México'
       const enc = encodeURIComponent(city)
@@ -894,6 +916,7 @@ public class MK {
 
   // --- OPEN PROJECT IN VS CODE ---
   { match: /abre\s+(el\s+)?(proyecto|project)\s+(.+?)\s+(?:en\s+)?(vs\s+code|visual\s+studio\s+code|vscode)?/i,
+    ex: ['abre proyecto tienda en vs code'],
     run: (m) => {
       const name = m[3].trim().toLowerCase()
       const dirs = [
@@ -1005,11 +1028,13 @@ public class MK {
 
   // --- SCREENSHOT REGION ---
   { match: /captura\s+(una\s+)?(regi[óo]n|parte|área|selección?|zona)/i,
+    ex: ['captura una región'],
     run: `Start-Process ms-screenclip:`,
     msg: 'Abriendo recorte de pantalla. Selecciona el área con el mouse.' },
 
   // --- VOLUME CONTROL BY APP ---
   { match: /volumen\s+(de\s+)?(.+?)\s+(sube|baja|silencio|mute|a\s+\d+)/i,
+    ex: ['volumen de chrome sube'],
     run: (m) => {
       const app = m[2].trim()
       const action = m[3].toLowerCase()
