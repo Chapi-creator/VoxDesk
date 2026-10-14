@@ -67,11 +67,11 @@ function createWindow(port) {
 function wakeOpts() {
   const cfg = config.load()
   const opts = { device: cfg.micDevice || undefined, endPause: cfg.endPause || undefined, patience: cfg.patience || undefined }
-  // A1: modelo grande descargado (fuera del instalador).
-  if (cfg.voiceModel === 'large') {
+  // B4: preciso solo si verifica completo; Automático lo usa cuando está.
+  if (cfg.voiceModel === 'large' || cfg.voiceModel === 'auto') {
     try {
-      const d = require('path').join(config.modelsDir(), 'vosk-model-es-0.42')
-      if (require('fs').existsSync(require('path').join(d, 'am', 'final.mdl'))) opts.modelDir = d
+      const r = wake.resolveModel(config.modelsDir())
+      if (r.kind === 'large' && r.dir) opts.modelDir = r.dir
     } catch {}
   }
   return opts
@@ -634,9 +634,15 @@ ipcMain.handle('models:status', () => {
   try {
     const mc = require('./src/main/modelcheck')
     const r = mc.checkLargeModel(config.modelsDir())
-    return { largeDownloaded: r.ok, missing: r.missing, MB: Math.round(r.bytesPresent / 1048576) }
+    // B4: qué motor está EN USO de verdad (no solo descargado).
+    let active = 'small'
+    try {
+      const cfg = config.load()
+      if ((cfg.voiceModel === 'large' || cfg.voiceModel === 'auto') && r.ok) active = 'large'
+    } catch {}
+    return { largeDownloaded: r.ok, missing: r.missing, MB: Math.round(r.bytesPresent / 1048576), active }
   } catch {
-    return { largeDownloaded: false, missing: [], MB: 0 }
+    return { largeDownloaded: false, missing: [], MB: 0, active: 'small' }
   }
 })
 

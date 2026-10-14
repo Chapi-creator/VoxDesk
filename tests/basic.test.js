@@ -1332,6 +1332,43 @@ await atest('opiniones: banco temático + fallback variado', async () => {
   assert.ok(o1.includes('impuestos'))
 })
 
+console.log('\nB4: voz que se entiende + oído preciso')
+
+test('cleanForSpeech: urls, correos, siglas, unidades', () => {
+  const tts = require('../src/main/tts')
+  assert.equal(tts.cleanForSpeech('mira https://ejemplo.com/x y www.test.org ya'), 'mira enlace y enlace ya')
+  assert.equal(tts.cleanForSpeech('escribe a juan@mail.com porfa'), 'escribe a correo electrónico porfa')
+  assert.equal(tts.cleanForSpeech('reinicia la PC y el USB'), 'reinicia la pe ce y el u ese be')
+  assert.equal(tts.cleanForSpeech('tengo 128 GB y 512 MB libres'), 'tengo 128 gigas y 512 megas libres')
+  assert.equal(tts.cleanForSpeech('hace 25°C hoy'), 'hace 25grados hoy')
+  assert.equal(tts.cleanForSpeech('**hola** `mundo`'), 'hola mundo')
+  assert.equal(tts.cleanForSpeech('  hola   mundo  '), 'hola mundo')
+  // Siglas en mayúsculas se expanden; minúsculas y dentro de palabras no.
+  assert.equal(tts.cleanForSpeech('el CPU del equipo'), 'el ce pe u del equipo')
+  assert.equal(tts.cleanForSpeech('ocupado y especial'), 'ocupado y especial')
+})
+
+test('resolveModel: grande solo si verifica', () => {
+  const wake = require('../src/main/wake')
+  const fs = require('fs')
+  const path = require('path')
+  const empty = fs.mkdtempSync(path.join(require('os').tmpdir(), 'vox-b4-'))
+  const r1 = wake.resolveModel(empty)
+  assert.equal(r1.kind, 'small')
+  assert.equal(r1.dir, null)
+  const full = fs.mkdtempSync(path.join(require('os').tmpdir(), 'vox-b4b-'))
+  for (const [d, f, sz] of [['am', 'final.mdl', 60], ['graph', 'HCLG.fst', 310], ['conf', 'model.conf', 1]]) {
+    fs.mkdirSync(path.join(full, 'vosk-model-es-0.42', d), { recursive: true })
+    const fd = fs.openSync(path.join(full, 'vosk-model-es-0.42', d, f), 'w')
+    fs.ftruncateSync(fd, sz * 1024 * 1024)
+    fs.closeSync(fd)
+  }
+  const r2 = wake.resolveModel(full)
+  assert.equal(r2.kind, 'large')
+  assert.ok(r2.dir.endsWith('vosk-model-es-0.42'))
+  fs.rmSync(full, { recursive: true, force: true })
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

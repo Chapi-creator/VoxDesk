@@ -61,6 +61,17 @@ function wakeArgs(wakeWord, opts = {}) {
   return args
 }
 
+// B4: qué modelo usar. Grande solo si verifica COMPLETO (no basta un resto).
+// → {kind:'large'|'small', dir|null}. dir null = el rápido empaquetado.
+function resolveModel(modelsDir) {
+  try {
+    const mc = require('./modelcheck')
+    const r = mc.checkLargeModel(modelsDir)
+    if (r.ok) return { kind: 'large', dir: r.dir }
+  } catch {}
+  return { kind: 'small', dir: null }
+}
+
 function start(wakeWord, opts = {}) {
   if (wakeWord) _wakeWord = wakeWord
   if (running) return true
@@ -170,4 +181,4 @@ function enginePath() {
   return fs.existsSync(WAKE_EXE) ? WAKE_EXE : null
 }
 
-module.exports = { start, stop, isRunning, listDevices, shouldHear, enginePath, wakeArgs, set onWake(v) { onWake = v }, set onText(v) { onText = v }, set onError(v) { onError = v }, set onLevel(v) { onLevel = v }, set onDown(v) { onDown = v }, set onIdle(v) { onIdle = v } }
+module.exports = { start, stop, isRunning, listDevices, shouldHear, enginePath, wakeArgs, resolveModel, set onWake(v) { onWake = v }, set onText(v) { onText = v }, set onError(v) { onError = v }, set onLevel(v) { onLevel = v }, set onDown(v) { onDown = v }, set onIdle(v) { onIdle = v } }

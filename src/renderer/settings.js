@@ -338,7 +338,8 @@ class SettingsManager {
     try {
       const st = await window.api.modelsStatus()
       if (st.largeDownloaded) {
-        this.elements.modelStatus.textContent = `✓ Modelo preciso instalado (${st.MB || '?'} MB). Elíguelo arriba.`
+        const uso = st.active === 'large' ? 'En uso: preciso.' : 'En uso: rápido (elige Preciso o Automático arriba).'
+        this.elements.modelStatus.textContent = `✓ Modelo preciso instalado (${st.MB || '?'} MB). ${uso}`
         if (this.elements.modelDlBtn) this.elements.modelDlBtn.style.display = 'none'
         if (this.elements.modelMeter) this.elements.modelMeter.style.display = 'none'
       } else if (st.missing && st.missing.length) {

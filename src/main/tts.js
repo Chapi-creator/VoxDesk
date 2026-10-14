@@ -14,6 +14,23 @@ let _speakToken = 0
 
 function escapeSingle(str) { return str.replace(/'/g, "''") }
 
+// B4: lo que se oye, no lo que se ve. URLs/emails crudos y siglas suenan fatal
+// dichos letra por letra; esto los convierte en palabras. Puro → testeable.
+const ACRONYMS = { PC: 'pe ce', USB: 'u ese be', GPS: 'ge pe ese', PDF: 'pe de efe', CPU: 'ce pe u' }
+
+function cleanForSpeech(text) {
+  let t = String(text || '')
+  t = t.replace(/https?:\/\/\S+/gi, 'enlace').replace(/www\.\S+/gi, 'enlace')
+  t = t.replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, 'correo electrónico')
+  t = t.replace(/(\*\*|__)(.*?)\1/g, '$2').replace(/`([^`]*)`/g, '$1').replace(/^#{1,6}\s+/gm, '')
+  t = t.replace(/°C/g, 'grados')
+  for (const [sig, say] of Object.entries(ACRONYMS)) {
+    t = t.replace(new RegExp(`\\b${sig}\\b`, 'g'), say)
+  }
+  t = t.replace(/(\d+)\s*GB\b/gi, '$1 gigas').replace(/(\d+)\s*MB\b/gi, '$1 megas')
+  return t.replace(/\s+/g, ' ').trim()
+}
+
 // Voces Piper empaquetadas (vendor/piper + vendor/voices). MIT.
 const VOICE_FILES = { mexicana: 'es_MX-claude-high.onnx', espana: 'es_ES-sharvard-medium.onnx', argentina: 'es_AR-daniela-high.onnx' }
 
@@ -57,10 +74,11 @@ function speak(text) {
   if (_child) stop()
   if (_gen) { try { _gen.kill() } catch {}; _gen = null }
   const eng = getEngine()
+  const said = cleanForSpeech(text)
   try { logger.info('tts motor:', eng.engine) } catch {}
-  if (eng.engine === 'piper') return piperSpeak(text, eng, tok)
-  if (eng.engine === 'edge') return edgeSpeak(text, eng, tok)
-  return sapiSpeak(text)
+  if (eng.engine === 'piper') return piperSpeak(said, eng, tok)
+  if (eng.engine === 'edge') return edgeSpeak(said, eng, tok)
+  return sapiSpeak(said)
 }
 
 // Edge-TTS online (experimental: servicio no oficial, puede no responder).
@@ -276,4 +294,4 @@ function isAvailable() {
   return _available
 }
 
-module.exports = { speak, stop, isAvailable, getEngine, selfTest }
+module.exports = { speak, stop, isAvailable, getEngine, selfTest, cleanForSpeech }
