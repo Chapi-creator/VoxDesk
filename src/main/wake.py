@@ -110,6 +110,69 @@ def detect_wake(text, words):
     lower = text.lower()
     return any(re.search(r'(?<!\w)' + re.escape(w) + r'(?!\w)', lower) for w in words)
 
+def _lev(a, b):
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (0 if ca == cb else 1)))
+        prev = cur
+    return prev[len(b)]
+
+# D: la palabra de Ajustes (sea cual sea) se detecta aunque Vosk la oiga a
+# medias: coincidencia exacta, prefijo de parcial ("asist"→asistente,
+# "compu"→computadora) o 1-2 letras de error. Puro → testeable por import.
+def fuzzy_wake(text, words):
+    lower = ' ' + text.lower() + ' '
+    for w in words or []:
+        wl = w.lower().strip()
+        if not wl:
+            continue
+        if re.search(r'(?<!\w)' + re.escape(wl) + r'(?!\w)', lower):
+            return True
+        if len(wl) <= 3 or ' ' in wl:
+            continue
+        for tok in re.findall(r'[a-záéíóúñü]+', lower):
+            if len(tok) < 4:
+                continue
+            if wl.startswith(tok):
+                return True
+            if _lev(tok, wl[:len(tok)]) <= 1:
+                return True
+            if _lev(tok, wl) <= max(1, len(wl) // 5):
+                return True
+    return False
+
+# D: gramática restringida para la escucha en espera. El decodificador SOLO
+# puede oír la palabra o [unk]: la detecta mejor y gasta menos CPU.
+# Los comandos tras despertar siguen con decodificador completo.
+def wake_grammar(words):
+    seen = []
+    for w in words or ['asistente']:
+        wl = (w or '').lower().strip()
+        if wl and wl not in seen:
+            seen.append(wl)
+    if not seen:
+        seen = ['asistente']
+    return json.dumps(seen + ['[unk]'])
+
+def make_rec(grammar=None):
+    try:
+        if grammar:
+            return vosk.KaldiRecognizer(_model, RATE, grammar)
+        return vosk.KaldiRecognizer(_model, RATE)
+    except Exception:
+        try:
+            return vosk.KaldiRecognizer(_model, RATE)
+        except Exception:
+            return None
+
 def adaptive_end(speech_sec, base, mult):
     # A2: la pausa exigida crece con lo que llevas hablando.
     if speech_sec < 2:
@@ -309,6 +372,28 @@ def self_test():
     return 0 if ok else 1
 
 
+def self_test_wake():
+    # Sin micro ni vosk: la palabra de Ajustes (cualquiera) se detecta exacta,
+    # a medias y con 1 letra mal; lo ajeno no dispara. D=activación.
+    cases = [
+        ('asistente vengo', ['asistente'], True),
+        ('hola asistente', ['asistente'], True),
+        ('asist', ['asistente'], True),
+        ('asistentw', ['asistente'], True),
+        ('compu prende', ['computadora'], True),
+        ('hola mundo', ['asistente'], False),
+        ('voy', ['vox'], False),
+        ('vox', ['vox'], True),
+        ('oye vox despierta', ['oye vox'], True),
+        ('oye', ['oye vox'], False),
+    ]
+    bad = [f'{t!r}' for t, w, exp in cases if fuzzy_wake(t, w) != exp]
+    g = wake_grammar(['Oye Vox'])
+    ok = not bad and '"oye vox"' in g and '"[unk]"' in g
+    print(json.dumps({'ok': ok, 'fallos': bad}))
+    return 0 if ok else 1
+
+
 def self_test_capture():
     # Sin micro ni modelos: pausa media NO corta, pausa larga SÍ (VAD energía).
     # OJO: el END es tiempo real; se mockea el reloj (32ms/frame) para ir rápido.
@@ -376,6 +461,7 @@ def main():
     ap.add_argument('--list-devices', action='store_true')
     ap.add_argument('--self-test', action='store_true')
     ap.add_argument('--self-test-capture', action='store_true')
+    ap.add_argument('--self-test-wake', action='store_true')
     args = ap.parse_args()
     if args.wakewords:
         WAKE_WORDS = [w.lower() for w in args.wakewords]
@@ -386,6 +472,9 @@ def main():
 
     if args.self_test_capture:
         sys.exit(self_test_capture())
+
+    if args.self_test_wake:
+        sys.exit(self_test_wake())
 
     if args.list_devices:
         try:
@@ -407,7 +496,11 @@ def main():
                 emit(error='Modelo no válido en ' + args.model_dir + ', uso el incluido')
         _model = vosk.Model(model_path)
 
-        rec = vosk.KaldiRecognizer(_model, RATE)
+        # D: la espera escucha SOLO la palabra (gramática); los comandos van completo.
+        rec = make_rec(wake_grammar(WAKE_WORDS))
+        if rec is None:
+            emit(error='No pude iniciar el reconocedor')
+            return
         p = pyaudio.PyAudio()
         dev_index = None
         if args.device != '':
@@ -463,12 +556,12 @@ def main():
                     emit(silent=True)
                 else:
                     emit(error="No te escuché")
-                rec = vosk.KaldiRecognizer(_model, RATE)
+                rec = make_rec(wake_grammar(WAKE_WORDS)) or vosk.KaldiRecognizer(_model, RATE)
                 continue
 
-            if detect_wake(text, WAKE_WORDS):
+            if fuzzy_wake(text, WAKE_WORDS):
                 emit(wake=True)
-                rec = vosk.KaldiRecognizer(_model, RATE)
+                rec = make_rec(wake_grammar(WAKE_WORDS)) or vosk.KaldiRecognizer(_model, RATE)
 
                 audio = capture_speech(stream, initial_frames=list(ringbuf),
                                          end_pause=args.end_pause, vad=vad, patience=args.patience)

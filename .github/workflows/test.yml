@@ -18,3 +18,4 @@ jobs:
       - run: pip install onnxruntime numpy tokenizers
       - run: python src/main/wake.py --self-test
       - run: python src/main/wake.py --self-test-capture
+      - run: python src/main/wake.py --self-test-wake
