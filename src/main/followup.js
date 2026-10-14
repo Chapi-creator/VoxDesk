@@ -50,4 +50,19 @@ function resolveFollowup(text, lastText) {
   return null
 }
 
-module.exports = { isYes, isNo, checkPending, resolveFollowup, PENDING_TTL }
+// Corta-loop: 3 "no entendí" seguidos por voz suspenden el follow-up 5 min
+// (la palabra clave sigue funcionando). Puro → testeable.
+const MISS_MAX = 3
+const MISS_COOLDOWN_MS = 5 * 60000
+
+// streak:{n, until} + now + {miss:bool} → {streak, cooled}
+function trackMiss(streak, now, miss) {
+  const s = { n: (streak && streak.n) || 0, until: (streak && streak.until) || 0 }
+  if (!miss) return { streak: { n: 0, until: 0 }, cooled: false }
+  if (now < s.until) return { streak: s, cooled: true }
+  s.n++
+  if (s.n >= MISS_MAX) return { streak: { n: 0, until: now + MISS_COOLDOWN_MS }, cooled: true }
+  return { streak: s, cooled: false }
+}
+
+module.exports = { isYes, isNo, checkPending, resolveFollowup, PENDING_TTL, trackMiss, MISS_COOLDOWN_MS }

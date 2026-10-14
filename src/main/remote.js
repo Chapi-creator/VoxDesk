@@ -29,14 +29,60 @@ function checkToken(provided, expected) {
 }
 
 function lanIp() {
+  const all = lanIps()
+  return all.length ? all[0].ip : ''
+}
+
+// Todas las IPv4 locales ordenadas: primero WiFi/LAN real, al final
+// virtuales (Docker, VPN, VirtualBox). La primera ya no es una lotería.
+function lanIps(ifs) {
+  const out = []
   try {
-    for (const ifs of Object.values(os.networkInterfaces())) {
-      for (const ni of ifs || []) {
-        if (ni.family === 'IPv4' && !ni.internal && ni.address) return ni.address
+    const table = ifs || os.networkInterfaces()
+    for (const [name, addrs] of Object.entries(table)) {
+      for (const ni of addrs || []) {
+        if (!ni || ni.family !== 'IPv4' || ni.internal || !ni.address) continue
+        const n = String(name || '').toLowerCase()
+        const a = ni.address
+        let score = 50
+        if (/wi-?fi|wlan|wireless/.test(n)) score = 100
+        else if (/^eth|ethernet|lan|en0|en1/.test(n)) score = 90
+        else if (/^192\.168\.|^10\.|^172\.(1[6-9]|2\d|3[01])\./.test(a)) score += 10
+        if (/docker|vethernet|virtualbox|vmnet|vmware|tailscale|tun|tap|vpn|hamachi|zerotier|vbox|hyper-v|wsl|br-|vswitch/i.test(n)) score = 1
+        out.push({ name: String(name || ''), ip: a, score })
       }
     }
   } catch {}
-  return ''
+  out.sort((x, y) => y.score - x.score)
+  return out
+}
+
+// ¿El móvil puede ver el servidor? Sin token: 401 = llega; refused = firewall/red.
+// Nunca lanza: devuelve {reachable, detail}.
+function probeReachability(ip, port, timeoutMs) {
+  return new Promise((resolve) => {
+    if (!ip || !port) { resolve({ reachable: false, detail: 'sin dirección' }); return }
+    const timer = setTimeout(() => { try { req.destroy() } catch {} }, timeoutMs || 5000)
+    let done = false
+    const fin = (r) => { if (!done) { done = true; clearTimeout(timer); resolve(r) } }
+    let req
+    try {
+      req = http.get({ host: ip, port: Number(port), path: '/api/status', timeout: timeoutMs || 5000 }, (res) => {
+        res.resume()
+        if (res.statusCode === 401) fin({ reachable: true, detail: 'el servidor responde (401 esperado sin token)' })
+        else fin({ reachable: true, detail: 'responde HTTP ' + res.statusCode })
+      })
+    } catch (e) { fin({ reachable: false, detail: 'no se pudo pedir: ' + (e.message || e) }); return }
+    req.on('timeout', () => { try { req.destroy() } catch {} })
+    req.on('error', (e) => {
+      const m = String((e && e.message) || e)
+      if (/ECONNREFUSED/.test(m)) fin({ reachable: false, detail: 'conexión rechazada: firewall o el servidor no escucha ahí' })
+      else if (/ETIMEDOUT|timeout/i.test(m)) fin({ reachable: false, detail: 'sin respuesta: ¿mismo WiFi? ¿firewall?' })
+      else if (/EHOSTUNREACH|ENETUNREACH/.test(m)) fin({ reachable: false, detail: 'red inalcanzable: ¿mismo WiFi?' })
+      else fin({ reachable: false, detail: m.slice(0, 120) })
+    })
+    req.on('close', () => fin({ reachable: false, detail: 'conexión cerrada sin respuesta' }))
+  })
 }
 
 function readBody(req, max = 65536) {
@@ -118,4 +164,4 @@ async function startRemote({ port, getToken, handlers, remoteDir }) {
   throw lastErr || new Error('puerto ocupado')
 }
 
-module.exports = { newToken, parseBearer, checkToken, lanIp, startRemote }
+module.exports = { newToken, parseBearer, checkToken, lanIp, lanIps, probeReachability, startRemote }

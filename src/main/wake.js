@@ -114,8 +114,8 @@ function start(wakeWord, opts = {}) {
           if (onError) onError(parsed.error)
         } else if (parsed.silent) {
           if (onIdle) onIdle()
-        } else if (parsed.level !== undefined) {
-          if (onLevel) onLevel(parsed.level, parsed.speaking, parsed.vad || 'listening')
+} else if (parsed.level !== undefined) {
+        if (onLevel) onLevel(parsed.level, parsed.speaking, parsed.vad || 'listening', parsed.clipped === true)
         }
       } catch (e) { logger.warn('wake.exe parse error:', trimmed.substring(0, 100), e.message) }
     }

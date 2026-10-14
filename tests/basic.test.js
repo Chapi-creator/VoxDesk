@@ -1701,6 +1701,59 @@ test('carpeta con .. no escapa de la base', () => {
   assert.ok(r === docs || r.startsWith(docs + path.sep), r)
 })
 
+console.log('\nFIX: corta-loop de followup')
+
+test('trackMiss: 3 fallos enfrían 5 min, un acierto resetea', () => {
+  const followup = require('../src/main/followup')
+  let s = { n: 0, until: 0 }
+  let r = followup.trackMiss(s, 1000, true)
+  assert.equal(r.cooled, false)
+  r = followup.trackMiss(r.streak, 2000, true)
+  assert.equal(r.cooled, false)
+  r = followup.trackMiss(r.streak, 3000, true)
+  assert.equal(r.cooled, true)
+  s = r.streak
+  r = followup.trackMiss(s, 4000, true)
+  assert.equal(r.cooled, true) // sigue en cooldown
+  r = followup.trackMiss(s, 4000 + followup.MISS_COOLDOWN_MS + 1000, true)
+  assert.equal(r.cooled, false) // pasó: cuenta de nuevo
+  r = followup.trackMiss({ n: 2, until: 0 }, 5000, false)
+  assert.deepEqual(r.streak, { n: 0, until: 0 })
+  assert.equal(followup.MISS_COOLDOWN_MS, 300000)
+})
+
+console.log('\nFIX: remoto con QR fiable')
+
+test('lanIps: WiFi primero, virtuales al final', () => {
+  const remote = require('../src/main/remote')
+  const ifs = {
+    'vEthernet (Docker)': [{ family: 'IPv4', internal: false, address: '172.17.0.1' }],
+    'Wi-Fi': [{ family: 'IPv4', internal: false, address: '192.168.1.50' }],
+    'VPN-x': [{ family: 'IPv4', internal: false, address: '10.8.0.2' }],
+    'Ethernet': [{ family: 'IPv4', internal: false, address: '192.168.1.51' }],
+    'Loopback': [{ family: 'IPv4', internal: true, address: '127.0.0.1' }],
+  }
+  const list = remote.lanIps(ifs)
+  assert.equal(list[0].ip, '192.168.1.50')
+  assert.equal(list[list.length - 1].ip, '10.8.0.2')
+  assert.ok(!list.some(x => x.ip === '127.0.0.1'))
+  assert.deepEqual(remote.lanIps({}), [])
+})
+
+await atest('probe: 401 es alcanzable, puerto cerrado no', async () => {
+  const http = require('http')
+  const remote = require('../src/main/remote')
+  const srv = http.createServer((req, res) => { res.writeHead(401); res.end('{}') })
+  await new Promise(r => srv.listen(0, '127.0.0.1', r))
+  try {
+    const ok = await remote.probeReachability('127.0.0.1', srv.address().port, 3000)
+    assert.equal(ok.reachable, true)
+    const bad = await remote.probeReachability('127.0.0.1', 9, 2000)
+    assert.equal(bad.reachable, false)
+    assert.ok(/firewall|rechazada|inaccesible|WiFi|red/i.test(bad.detail), bad.detail)
+  } finally { srv.close() }
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

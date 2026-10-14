@@ -133,7 +133,7 @@
   })
 
   window.api.onAudioLevel((data) => {
-    ui.setAudioLevel(data.level, data.speaking, data.vad)
+    ui.setAudioLevel(data.level, data.speaking, data.vad, data.clipped)
   })
 
   window.api.onWakeDetected(async (command) => {

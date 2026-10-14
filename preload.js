@@ -54,6 +54,8 @@ contextBridge.exposeInMainWorld('api', {
   remoteInfo: () => ipcRenderer.invoke('remote:info'),
   remoteQr: () => ipcRenderer.invoke('remote:qr'),
   remoteRevoke: () => ipcRenderer.invoke('remote:revoke'),
+  remoteRestart: () => ipcRenderer.invoke('remote:restart'),
+  remoteProbe: () => ipcRenderer.invoke('remote:probe'),
   approvalsList: () => ipcRenderer.invoke('approvals:list'),
   approvalsDecide: (id, ok) => ipcRenderer.invoke('approvals:decide', id, ok),
   modelsStatus: () => ipcRenderer.invoke('models:status'),

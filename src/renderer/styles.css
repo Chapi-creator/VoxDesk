@@ -186,14 +186,15 @@ body {
 }
 .level-meter .vad-label {
   position: absolute; right: 8px; bottom: 4px;
-  font-size: 7px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 1px; opacity: 0.7;
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1px; opacity: 0.85;
   pointer-events: none;
 }
 .level-meter .vad-label.idle { color: var(--ink-faint); }
 .level-meter .vad-label.listening { color: var(--accent); }
 .level-meter .vad-label.speaking { color: var(--ok); }
 .level-meter .vad-label.processing { color: var(--warn); }
+.level-meter .vad-label.clipped { color: #ff5252; animation: recPulse 1s ease-in-out infinite; }
 
 /* ---------- controles ---------- */
 .controls-row {

@@ -37,6 +37,8 @@ class SettingsManager {
     this.elements.remoteQr = document.getElementById('settings-remote-qr')
     this.elements.remoteQrBtn = document.getElementById('btn-remote-qr')
     this.elements.remoteRevokeBtn = document.getElementById('btn-remote-revoke')
+    this.elements.remoteProbeBtn = document.getElementById('btn-remote-probe')
+    this.elements.remoteRestartBtn = document.getElementById('btn-remote-restart')
     this.elements.customVoices = document.getElementById('settings-custom-voices')
     this.elements.voiceUrl = document.getElementById('settings-voice-url')
     this.elements.voiceAddBtn = document.getElementById('btn-voice-add')
@@ -142,13 +144,33 @@ class SettingsManager {
     })
     if (this.elements.remoteQrBtn) this.elements.remoteQrBtn.addEventListener('click', async () => {
       try {
+        if (this.elements.remoteInfo) this.elements.remoteInfo.textContent = 'Generando QR…'
         const qr = await window.api.remoteQr()
         if (qr && qr.dataUrl && this.elements.remoteQr) {
           this.elements.remoteQr.src = qr.dataUrl
           this.elements.remoteQr.style.display = ''
+          if (this.elements.remoteInfo && qr.url) this.elements.remoteInfo.textContent = qr.url
         } else if (this.elements.remoteInfo) {
-          this.elements.remoteInfo.textContent = 'Guarda primero con remoto activado.'
+          this.elements.remoteInfo.textContent = (qr && qr.error) || 'Guarda primero con remoto activado.'
         }
+      } catch {}
+    })
+    if (this.elements.remoteProbeBtn) this.elements.remoteProbeBtn.addEventListener('click', async () => {
+      try {
+        if (this.elements.remoteInfo) this.elements.remoteInfo.textContent = 'Probando alcance…'
+        const r = await window.api.remoteProbe()
+        if (this.elements.remoteInfo) {
+          this.elements.remoteInfo.textContent = r && r.reachable
+            ? '✓ Tu móvil debería ver el servidor. Si no conecta: mismo WiFi y firewall.'
+            : '✗ No se ve desde la red: ' + ((r && r.detail) || 'revisa WiFi/firewall.')
+        }
+      } catch {}
+    })
+    if (this.elements.remoteRestartBtn) this.elements.remoteRestartBtn.addEventListener('click', async () => {
+      try {
+        if (this.elements.remoteInfo) this.elements.remoteInfo.textContent = 'Reiniciando servidor…'
+        await window.api.remoteRestart()
+        this._refreshRemote()
       } catch {}
     })
     if (this.elements.remoteRevokeBtn) this.elements.remoteRevokeBtn.addEventListener('click', async () => {
@@ -378,6 +400,10 @@ class SettingsManager {
       if (!info.enabled) {
         this.elements.remoteInfo.textContent = 'Apagado. Actívalo y guarda para usarlo en tu WiFi.'
         if (this.elements.remoteQr) this.elements.remoteQr.style.display = 'none'
+        return
+      }
+      if (!info.serverUp) {
+        this.elements.remoteInfo.textContent = 'Servidor caído' + (info.error ? ': ' + info.error : '. Pulsa Reiniciar servidor.')
         return
       }
       this.elements.remoteInfo.textContent = info.url ? `Escucha en ${info.url} (solo tu WiFi)` : 'Activado: guarda para ver la dirección.'

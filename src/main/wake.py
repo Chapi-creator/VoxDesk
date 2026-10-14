@@ -106,6 +106,43 @@ def emit(**kw):
     sys.stdout.write(json.dumps(kw) + '\n')
     sys.stdout.flush()
 
+# Calidad de un resultado Vosk: (confianza media, duración). Puro → testeable.
+def result_quality(result):
+    words = result.get('result') or []
+    confs = []
+    for w in words:
+        if isinstance(w, dict):
+            try:
+                confs.append(float(w.get('conf', 0)))
+            except (TypeError, ValueError):
+                pass
+    if not confs:
+        return 0.0, 0.0
+    try:
+        dur = float(words[-1].get('end', 0)) - float(words[0].get('start', 0))
+    except (TypeError, ValueError, IndexError):
+        dur = 0.0
+    return sum(confs) / len(confs), max(0.0, dur)
+
+# True si el frame trae muestras recortadas (ganancia al tope). Puro.
+def frame_clipped(frame, thresh=32000):
+    n = len(frame) // 2
+    if n <= 0:
+        return False
+    k = min(n, 256)
+    try:
+        for s in struct.unpack('<' + 'h' * k, frame[:k * 2]):
+            if abs(s) >= thresh:
+                return True
+    except Exception:
+        return False
+    return False
+
+# Umbrales medidos: voz clara 0.89-0.94, ruido 0.0. Margen amplio.
+WAKE_MIN_CONF = 0.5
+WAKE_MIN_DUR = 0.4
+CMD_MIN_CONF = 0.4
+
 def detect_wake(text, words):
     lower = text.lower()
     return any(re.search(r'(?<!\w)' + re.escape(w) + r'(?!\w)', lower) for w in words)
@@ -125,9 +162,9 @@ def _lev(a, b):
         prev = cur
     return prev[len(b)]
 
-# D: la palabra de Ajustes (sea cual sea) se detecta aunque Vosk la oiga a
-# medias: coincidencia exacta, prefijo de parcial ("asist"→asistente,
-# "compu"→computadora) o 1-2 letras de error. Puro → testeable por import.
+# D: la palabra de Ajustes (sea cual sea) se detecta aunque Vosk la oiga con
+# 1 letra de error ("asistent"). SIN prefijos: "asiste"/"asista" son palabras
+# reales y disparaban solo el detector (falsos positivos por ruido). Puro.
 def fuzzy_wake(text, words):
     lower = ' ' + text.lower() + ' '
     for w in words or []:
@@ -141,10 +178,6 @@ def fuzzy_wake(text, words):
         for tok in re.findall(r'[a-záéíóúñü]+', lower):
             if len(tok) < 4:
                 continue
-            if wl.startswith(tok):
-                return True
-            if _lev(tok, wl[:len(tok)]) <= 1:
-                return True
             if _lev(tok, wl) <= max(1, len(wl) // 5):
                 return True
     return False
@@ -165,8 +198,14 @@ def wake_grammar(words):
 def make_rec(grammar=None):
     try:
         if grammar:
-            return vosk.KaldiRecognizer(_model, RATE, grammar)
-        return vosk.KaldiRecognizer(_model, RATE)
+            r = vosk.KaldiRecognizer(_model, RATE, grammar)
+        else:
+            r = vosk.KaldiRecognizer(_model, RATE)
+        try:
+            r.SetWords(True)
+        except Exception:
+            pass
+        return r
     except Exception:
         try:
             return vosk.KaldiRecognizer(_model, RATE)
@@ -320,11 +359,20 @@ def recognize(raw):
     global _model
     try:
         rec = vosk.KaldiRecognizer(_model, RATE)
+        try:
+            rec.SetWords(True)
+        except Exception:
+            pass
         rec.AcceptWaveform(raw)
         res = json.loads(rec.FinalResult())
         text = res.get('text', '').strip()
         if text:
-            emit(text=text)
+            conf, _dur = result_quality(res)
+            # Ruido con forma de palabras: se ignora en silencio (no alimenta loops).
+            if conf < CMD_MIN_CONF:
+                emit(silent=True)
+                return
+            emit(text=text, conf=round(conf, 3))
         else:
             emit(error="No te entendí")
     except Exception as e:
@@ -378,9 +426,12 @@ def self_test_wake():
     cases = [
         ('asistente vengo', ['asistente'], True),
         ('hola asistente', ['asistente'], True),
-        ('asist', ['asistente'], True),
+        ('asistent', ['asistente'], True),
         ('asistentw', ['asistente'], True),
-        ('compu prende', ['computadora'], True),
+        ('asist', ['asistente'], False),
+        ('asiste', ['asistente'], False),
+        ('asista', ['asistente'], False),
+        ('computadoras', ['computadora'], True),
         ('hola mundo', ['asistente'], False),
         ('voy', ['vox'], False),
         ('vox', ['vox'], True),
@@ -390,6 +441,15 @@ def self_test_wake():
     bad = [f'{t!r}' for t, w, exp in cases if fuzzy_wake(t, w) != exp]
     g = wake_grammar(['Oye Vox'])
     ok = not bad and '"oye vox"' in g and '"[unk]"' in g
+    # Puerta de calidad: voz clara pasa, ruido/vacío no.
+    q_ok, q_dur = result_quality({'result': [{'conf': 0.9, 'start': 0.0, 'end': 1.0}, {'conf': 0.95, 'start': 1.0, 'end': 1.8}]})
+    ok = ok and abs(q_ok - 0.925) < 0.001 and abs(q_dur - 1.8) < 0.001
+    ok = ok and result_quality({'result': []}) == (0.0, 0.0)
+    ok = ok and result_quality({}) == (0.0, 0.0)
+    # Clipping: tope de escala sí, señal normal no.
+    ok = ok and frame_clipped(struct.pack('<4h', 32767, -32767, 100, -100)) is True
+    ok = ok and frame_clipped(struct.pack('<4h', 100, -200, 300, -400)) is False
+    ok = ok and frame_clipped(b'') is False
     print(json.dumps({'ok': ok, 'fallos': bad}))
     return 0 if ok else 1
 
@@ -525,10 +585,26 @@ def main():
                 vad = SileroVad(SILERO_PATH)
             except Exception:
                 vad = None
+        _clip_n = 0
+        _clip_total = 0
+        _clip_warned_at = 0.0
 
         while True:
             data = stream.read(FRAME_SIZE, exception_on_overflow=False)
             ringbuf.append(data)
+            # Saturación: frames recortados en ventana de 64 (~2 s). Aviso
+            # throttled; la app no puede bajar tu ganancia, solo avisarte.
+            _clip_n += frame_clipped(data)
+            _clip_total += 1
+            if _clip_total >= 64:
+                try:
+                    if _clip_n / 64.0 > 0.05 and time.time() - _clip_warned_at > 30:
+                        _clip_warned_at = time.time()
+                        emit(level=1.0, speaking=False, vad='listening', clipped=True)
+                except Exception:
+                    pass
+                _clip_n = 0
+                _clip_total = 0
             final = rec.AcceptWaveform(data)
 
             if final:
@@ -560,6 +636,13 @@ def main():
                 continue
 
             if fuzzy_wake(text, WAKE_WORDS):
+                # Puerta de calidad en finales: ruido con pinta de palabra no despierta.
+                # (Los parciales no traen confianza; ya van con fuzzy estricto.)
+                if final:
+                    _qc, _qd = result_quality(result)
+                    if _qc < WAKE_MIN_CONF or _qd < WAKE_MIN_DUR:
+                        rec = make_rec(wake_grammar(WAKE_WORDS)) or vosk.KaldiRecognizer(_model, RATE)
+                        continue
                 emit(wake=True)
                 rec = make_rec(wake_grammar(WAKE_WORDS)) or vosk.KaldiRecognizer(_model, RATE)
 

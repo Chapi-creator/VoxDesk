@@ -107,11 +107,21 @@ button.act:active { background: rgba(79,195,247,0.28); }
     say('Conectado. Escríbeme o dicta con 🎤.', 'sys');
     if ('serviceWorker' in navigator) { try { navigator.serviceWorker.register('sw.js'); } catch (e) {} }
   }
-  document.getElementById('pair-btn').addEventListener('click', function () {
+  document.getElementById('pair-btn').addEventListener('click', async function () {
     var u = document.getElementById('pair-url').value.trim();
     var t = parseToken(u);
     if (!t) { alert('Pega la dirección completa que muestra el QR.'); return; }
-    connected(u.split('#')[0], t);
+    var b = u.split('#')[0];
+    // Verifica ANTES de decir "Conectado": distingue red de token.
+    try {
+      var r = await apiCall(fetch.bind(window), b, t, '/api/status', {});
+      if (r && (r.ok || r.version)) { connected(b, t); return; }
+      say('El servidor responde raro. Reintenta.', 'sys');
+    } catch (e) {
+      var m = String((e && e.message) || e);
+      if (/sin acceso|401/.test(m)) say('Token inválido o revocado: genera el QR de nuevo en el PC.', 'sys');
+      else say('No llego al servidor (' + m.slice(0, 80) + '). ¿Mismo WiFi? ¿Firewall en el PC?', 'sys');
+    }
   });
   document.getElementById('send').addEventListener('click', function () { send(document.getElementById('cmd').value); });
   document.getElementById('cmd').addEventListener('keydown', function (e) {
@@ -144,8 +154,18 @@ button.act:active { background: rgba(79,195,247,0.28); }
     } catch (e) { say('No pude abrir el micro.', 'sys'); }
   });
   if (token) {
-    var b = base || (location.origin + location.pathname);
-    connected(b, token);
+    // Autovinculado (QR o anterior): verifica en fondo; si falla, vuelve a pedir.
+    (async function () {
+      try {
+        var b = base || (location.origin + location.pathname);
+        var r = await apiCall(fetch.bind(window), b, token, '/api/status', {});
+        if (r && (r.ok || r.version)) { connected(b, token); return; }
+        throw new Error('respuesta rara');
+      } catch (e) {
+        var m = String((e && e.message) || e);
+        say(/sin acceso|401/.test(m) ? 'Token inválido: pega la dirección del QR de nuevo.' : 'Sin conexión (' + m.slice(0, 80) + '). Revisa WiFi/firewall o pega la dirección del QR.', 'sys');
+      }
+    })();
   }
 })();
 </script>

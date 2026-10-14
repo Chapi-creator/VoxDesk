@@ -64,10 +64,13 @@ class UIManager {
     this._dpr = window.devicePixelRatio || 1
   }
 
-  setAudioLevel(level, speaking, vad) {
+  setAudioLevel(level, speaking, vad, clipped) {
     this._level = Math.min(1, Math.max(0, level))
     this._speaking = !!speaking
     this._vadState = vad || 'listening'
+    // MIC SATURADO: la ganancia recorta y Vosk inventa palabras. Se muestra
+    // 6 s; la app no puede bajar tu ganancia (Windows > Sonido > Entrada).
+    if (clipped) this._clipUntil = Date.now() + 6000
     if (!this._animFrame) this._startDrawLoop()
   }
 
@@ -133,10 +136,15 @@ class UIManager {
 
     // VAD label
     if (this.elements.vadLabel) {
-      const labels = { idle: 'INACTIVO', listening: 'ESCUCHANDO', speaking: 'HABLANDO', processing: 'PROCESANDO' }
-      const cls = this._vadState || 'idle'
-      this.elements.vadLabel.textContent = labels[cls] || 'INACTIVO'
-      this.elements.vadLabel.className = `vad-label ${cls}`
+      if (this._clipUntil && Date.now() < this._clipUntil) {
+        this.elements.vadLabel.textContent = 'MIC SATURADO: baja la ganancia'
+        this.elements.vadLabel.className = 'vad-label clipped'
+      } else {
+        const labels = { idle: 'INACTIVO', listening: 'ESCUCHANDO', speaking: 'HABLANDO', processing: 'PROCESANDO' }
+        const cls = this._vadState || 'idle'
+        this.elements.vadLabel.textContent = labels[cls] || 'INACTIVO'
+        this.elements.vadLabel.className = `vad-label ${cls}`
+      }
     }
   }
 

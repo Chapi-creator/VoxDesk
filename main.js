@@ -143,6 +143,7 @@ ipcMain.handle('speech:cancel', async () => {
 })
 
 let _followUntil = 0
+let _missStreak = { n: 0, until: 0 }
 const dictate = require('./src/main/dictate')
 const _dictateSt = dictate.create()
 
@@ -177,6 +178,8 @@ ipcMain.handle('followup:arm', () => {
   try {
     if (config.load().followUp === false) return false
   } catch {}
+  // Corta-loop: racha de "no entendí" por voz → sin follow-up 5 min.
+  if (Date.now() < _missStreak.until) return false
   _followUntil = Date.now() + 8000
   setTimeout(() => {
     try {
@@ -825,12 +828,12 @@ wake.onWake = (command) => {
 }
 
 let _lastLevelAt = 0
-wake.onLevel = (level, speaking, vad) => {
+wake.onLevel = (level, speaking, vad, clipped) => {
   // Throttle 4Hz: el medidor no necesita 60 IPC/s.
   const now = Date.now()
-  if (now - _lastLevelAt < 250) return
+  if (now - _lastLevelAt < 250 && !clipped) return
   _lastLevelAt = now
-  if (mainWindow) mainWindow.webContents.send('audio:level', { level, speaking, vad })
+  if (mainWindow) mainWindow.webContents.send('audio:level', { level, speaking, vad, clipped: !!clipped })
 }
 
 wake.onDown = (message) => {
@@ -842,6 +845,9 @@ wake.onText = async (text) => {
   if (mainWindow) {
     const dictated = await maybeDictate(text)
     const result = dictated || await handleAndTrack(text)
+    // Corta-loop: "no entendí" tras "no entendí" tras... → follow-up en pausa.
+    const miss = !dictated && !result.success && /^No entendí/i.test(result.message || '')
+    _missStreak = followup.trackMiss(_missStreak, Date.now(), miss).streak
     result._text = text
     mainWindow.webContents.send('wake:result', result)
   }
@@ -864,18 +870,21 @@ const approvals = require('./src/main/approvals')
 let _remoteServer = null
 let _remotePort = 0
 let _remoteActive = 0
+let _remoteError = ''
 
 async function syncRemoteServer() {
+  _remoteError = ''
   try {
     const cfg = config.load()
     if (!cfg.remoteEnabled) {
       if (_remoteServer) { try { _remoteServer.close() } catch {} _remoteServer = null }
-      return
+      _remotePort = 0
+      return { ok: false, reason: 'apagado' }
     }
     if (!cfg.remoteToken) {
       config.save({ ...cfg, remoteToken: remoteApi.newToken() })
     }
-    if (_remoteServer) return
+    if (_remoteServer && _remotePort) return { ok: true, port: _remotePort }
     const { server, port } = await remoteApi.startRemote({
       port: cfg.remotePort || 4567,
       remoteDir: path.join(__dirname, 'src', 'remote'),
@@ -909,8 +918,12 @@ async function syncRemoteServer() {
     _remoteServer = server
     _remotePort = port
     logger.info('Remote LAN en puerto ' + port)
+    return { ok: true, port }
   } catch (e) {
-    logger.warn('remote no pudo arrancar: ' + e.message)
+    _remotePort = 0
+    _remoteError = e.message || String(e)
+    logger.warn('remote no pudo arrancar: ' + _remoteError)
+    return { ok: false, reason: _remoteError }
   }
 }
 
@@ -918,26 +931,53 @@ ipcMain.handle('remote:info', () => {
   try {
     const cfg = config.load()
     const ip = remoteApi.lanIp()
+    const serverUp = !!(_remoteServer && _remotePort)
     return {
       enabled: !!cfg.remoteEnabled,
+      serverUp,
       ip, port: _remotePort || cfg.remotePort || 4567,
       url: ip && _remotePort ? `http://${ip}:${_remotePort}/remote/` : '',
       hasToken: !!cfg.remoteToken,
+      error: _remoteError || (cfg.remoteEnabled && !serverUp ? 'servidor no arrancado' : ''),
     }
-  } catch { return { enabled: false, ip: '', port: 0, url: '', hasToken: false } }
+  } catch { return { enabled: false, serverUp: false, ip: '', port: 0, url: '', hasToken: false, error: '' } }
+})
+
+ipcMain.handle('remote:restart', async () => {
+  try { if (_remoteServer) _remoteServer.close() } catch {}
+  _remoteServer = null
+  _remotePort = 0
+  return await syncRemoteServer()
+})
+
+ipcMain.handle('remote:probe', async () => {
+  try {
+    const ip = remoteApi.lanIp()
+    return await remoteApi.probeReachability(ip, _remotePort || 4567, 5000)
+  } catch (e) {
+    return { reachable: false, detail: e.message || String(e) }
+  }
 })
 
 ipcMain.handle('remote:qr', async () => {
   try {
     const cfg = config.load()
-    if (!cfg.remoteEnabled || !cfg.remoteToken || !_remotePort) return null
+    if (!cfg.remoteEnabled) return { error: 'Activa el remoto y guarda.' }
+    // El servidor arranca en fondo al guardar: si aún no hay puerto, espera una vez.
+    if (!_remotePort) {
+      try { await syncRemoteServer() } catch {}
+    }
+    if (!_remotePort) return { error: 'Servidor sin arrancar: ' + (_remoteError || 'reintenta en unos segundos.') }
+    if (!cfg.remoteToken) return { error: 'Sin token: guarda de nuevo.' }
     const ip = remoteApi.lanIp()
-    if (!ip) return null
+    if (!ip) return { error: 'Sin IP local: revisa tu WiFi.' }
     const url = `http://${ip}:${_remotePort}/remote/#${cfg.remoteToken}`
     const QRCode = require('qrcode')
     const dataUrl = await QRCode.toDataURL(url, { width: 220, margin: 1 })
     return { url: `http://${ip}:${_remotePort}/remote/`, dataUrl }
-  } catch { return null }
+  } catch (e) {
+    return { error: 'QR falló: ' + (e.message || e) }
+  }
 })
 
 ipcMain.handle('remote:revoke', () => {
