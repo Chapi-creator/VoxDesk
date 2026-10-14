@@ -29,7 +29,8 @@ function execute(text) {
 
   if (!term) return Promise.resolve({ success: false, message: '¿Qué archivo buscas?' })
 
-  const sanitized = term.replace(/'/g, "''").replace(/[;$&|<>]/g, '')
+  // SEG: comillas/backtick/$ y comodines neutralizados (era inyectable con ").
+  const sanitized = term.replace(/'/g, "''").replace(/["`$*?\[\]]/g, '')
   const ps = `$dirs = @(${dirs.join(', ')})
 $results = @()
 foreach ($dir in $dirs) {

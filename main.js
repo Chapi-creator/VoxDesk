@@ -216,6 +216,7 @@ async function confirmDestructive(title, detail) {
 }
 smartExec.setConfirm(confirmDestructive)
 systemCmds.setConfirm(confirmDestructive)
+try { require('./src/main/commands/launch').setConfirm(confirmDestructive) } catch {}
 
 // C: consenso semántico. La red elige PATRÓN (canon); el texto original se
 // ejecuta para conservar argumentos. Umbrales medidos (semroute + banco).
@@ -823,7 +824,12 @@ wake.onWake = (command) => {
   }
 }
 
+let _lastLevelAt = 0
 wake.onLevel = (level, speaking, vad) => {
+  // Throttle 4Hz: el medidor no necesita 60 IPC/s.
+  const now = Date.now()
+  if (now - _lastLevelAt < 250) return
+  _lastLevelAt = now
   if (mainWindow) mainWindow.webContents.send('audio:level', { level, speaking, vad })
 }
 
@@ -1072,9 +1078,9 @@ app.whenReady().then(async () => {
   memory.setUserDataPath(app.getPath('userData'))
   plugins.setSkillsDir(path.join(app.getPath('userData'), 'skills'))
   plugins.ensureExample()
-  plugins.loadAll()
   logger.init(app.getPath('userData'))
   logger.info('App started')
+  // Ventana primero (pinta ya); lo pesado en fondo sin bloquear.
   const port = await startServer()
   mark('server')
   createWindow(port)
@@ -1091,7 +1097,10 @@ app.whenReady().then(async () => {
     setWakeMode(true)
     require('./src/main/commands/timer').loadPending()
   }
-  startWake()
+  setImmediate(() => {
+    try { plugins.loadAll() } catch {}
+    startWake()
+  })
   mark('wake')
   syncRemoteServer()
   setTimeout(() => lifeTick(), 30000)

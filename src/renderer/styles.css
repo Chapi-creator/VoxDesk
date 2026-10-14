@@ -82,17 +82,17 @@ body {
 .status.thinking { color: var(--violet); }
 .status.error { color: var(--err); }
 .model-info {
-  font-size: 8px; font-weight: 600; letter-spacing: 0.5px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.5px;
   text-transform: uppercase; color: var(--ink-ghost);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .model-info.active { color: rgba(179, 136, 255, 0.5); }
 .rec-badge { display: none; align-items: center; gap: 5px; margin-left: auto; }
 .rec-badge.visible { display: flex; }
-.rec-badge { font-size: 8px; font-weight: 700; letter-spacing: 1px; color: var(--err); animation: recPulse 1.2s ease-in-out infinite; }
+.rec-badge { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: var(--err); animation: recPulse 1.2s ease-in-out infinite; }
 .rec-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--err); }
 .tts-off {
-  margin-left: auto; font-size: 8px; font-weight: 700; letter-spacing: 0.8px;
+  margin-left: auto; font-size: 11px; font-weight: 700; letter-spacing: 0.8px;
   color: var(--ink-faint); opacity: 0; transition: opacity 0.3s;
   border: 1px solid var(--line); border-radius: 20px; padding: 2px 8px;
 }
@@ -133,7 +133,7 @@ body {
 .hist-entry .h-q { color: var(--ink-dim); font-weight: 500; font-family: var(--font-mono); }
 .hist-entry .h-q::before { content: '› '; color: var(--accent); }
 .hist-entry .h-a { color: var(--ink-faint); font-family: var(--font-mono); }
-.hist-entry .h-time { font-size: 8px; color: var(--ink-ghost); font-family: var(--font-mono); }
+.hist-entry .h-time { font-size: 10px; color: var(--ink-ghost); font-family: var(--font-mono); }
 .transcript {
   font-family: var(--font-mono); text-align: left;
   font-size: 12px; font-weight: 500; color: var(--accent);
@@ -274,7 +274,7 @@ body {
 .icon-btn {
   background: none; border: 1px solid transparent; border-radius: var(--r-sm);
   color: var(--ink-faint); cursor: pointer; padding: 0;
-  width: 30px; height: 28px; display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 40px; display: flex; align-items: center; justify-content: center;
   transition: all 0.15s;
 }
 .icon-btn:hover { color: var(--ink); background: rgba(255, 255, 255, 0.05); border-color: var(--line); }

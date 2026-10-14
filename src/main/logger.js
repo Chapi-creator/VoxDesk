@@ -14,7 +14,18 @@ function _write(level, args) {
   const msg = `[${_ts()}] [${level}] ${args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ')}`
   console.log(msg)
   if (!_logDir) return
-  try { fs.appendFileSync(path.join(_logDir, 'app.log'), msg + '\n') } catch {}
+  // Rotación barata: a 1MB, app.log -> app.1.log -> app.2.log (máx ~3MB).
+  try {
+    const f = path.join(_logDir, 'app.log')
+    try {
+      if (fs.statSync(f).size > 1024 * 1024) {
+        try { fs.unlinkSync(path.join(_logDir, 'app.2.log')) } catch {}
+        try { fs.renameSync(path.join(_logDir, 'app.1.log'), path.join(_logDir, 'app.2.log')) } catch {}
+        try { fs.renameSync(f, path.join(_logDir, 'app.1.log')) } catch {}
+      }
+    } catch {}
+    fs.appendFileSync(f, msg + '\n')
+  } catch {}
 }
 
 module.exports = {

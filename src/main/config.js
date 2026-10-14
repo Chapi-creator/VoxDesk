@@ -14,6 +14,17 @@ function setUserDataPath(p) {
   _userDataPath = p
 }
 
+let _cfgCache = null
+let _cfgMtime = 0
+let _cfgFile = ''
+
+function _decryptCfg(raw) {
+  if (raw.apiKey) raw.apiKey = _decrypt(raw.apiKey)
+  if (raw.smtpPass) raw.smtpPass = _decrypt(raw.smtpPass)
+  if (raw.remoteToken) raw.remoteToken = _decrypt(raw.remoteToken)
+  return raw
+}
+
 // Carpeta de modelos descargados (p.ej. Vosk grande). Fuera del instalador.
 function modelsDir() {
   const path = require('path')
@@ -48,11 +59,13 @@ function _decrypt(val) {
 
 function load() {
   try {
+    const st = fs.statSync(_getPath())
+    if (_cfgCache && _cfgFile === _getPath() && st.mtimeMs === _cfgMtime) return { ..._cfgCache }
     const raw = JSON.parse(fs.readFileSync(_getPath(), 'utf8'))
-    if (raw.apiKey) raw.apiKey = _decrypt(raw.apiKey)
-    if (raw.smtpPass) raw.smtpPass = _decrypt(raw.smtpPass)
-    if (raw.remoteToken) raw.remoteToken = _decrypt(raw.remoteToken)
-    return { ...DEFAULTS, ...raw }
+    _cfgCache = { ...DEFAULTS, ..._decryptCfg(raw) }
+    _cfgMtime = st.mtimeMs
+    _cfgFile = _getPath()
+    return { ..._cfgCache }
   } catch {
     return { ...DEFAULTS }
   }
@@ -67,6 +80,11 @@ function save(data) {
     if (out.smtpPass) out.smtpPass = _encrypt(out.smtpPass)
     if (out.remoteToken) out.remoteToken = _encrypt(out.remoteToken)
     fs.writeFileSync(_getPath(), JSON.stringify(out, null, 2))
+    try {
+      _cfgCache = { ...DEFAULTS, ...data }
+      _cfgMtime = fs.statSync(_getPath()).mtimeMs
+      _cfgFile = _getPath()
+    } catch { _cfgCache = null; _cfgMtime = 0; _cfgFile = '' }
     return true
   } catch (e) {
     logger.error('config.save falló en', _getPath(), '->', e.message)

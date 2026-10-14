@@ -23,14 +23,31 @@ function setUserDataPath(p) {
   _ensureDir()
 }
 
+let _cache = null
+let _cacheMtime = 0
+let _cacheFile = ''
+
 function load() {
   _ensureDir()
-  try { return JSON.parse(fs.readFileSync(FILE, 'utf8')) } catch { return { preferences: {}, custom_commands: [], notes: [], macros: {} } }
+  // Caché RAM con mtime+path: ~10 lecturas JSON por orden -> 0 IO si nadie escribió.
+  try {
+    const st = fs.statSync(FILE)
+    if (_cache && _cacheFile === FILE && st.mtimeMs === _cacheMtime) return _cache
+    _cache = JSON.parse(fs.readFileSync(FILE, 'utf8'))
+    _cacheMtime = st.mtimeMs
+    _cacheFile = FILE
+    return _cache
+  } catch { return { preferences: {}, custom_commands: [], notes: [], macros: {} } }
 }
 
 function save(data) {
   _ensureDir()
   fs.writeFileSync(FILE, JSON.stringify(data, null, 2), 'utf8')
+  try {
+    _cache = data
+    _cacheMtime = fs.statSync(FILE).mtimeMs
+    _cacheFile = FILE
+  } catch { _cache = null; _cacheMtime = 0; _cacheFile = '' }
 }
 
 function get(key) { const d = load(); return d.preferences[key] }

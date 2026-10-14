@@ -84,7 +84,7 @@ class OnboardingManager {
       box.textContent = '¡Funciona! Ya puedes comenzar.'
       const start = document.getElementById('btn-start')
       if (start) start.style.display = ''
-    } catch { box.textContent = 'Algo falló, pero puedes comenzar igual.' }
+    } catch { box.textContent = 'Algo falló, pero puedes comenzar igual.'; const start = document.getElementById('btn-start'); if (start) start.style.display = '' }
   }
 
   _finish() {

@@ -1560,12 +1560,11 @@ test('rutas/archivos: hostil queda entre comillas simples', () => {
   // (Sin assertPsSafe aquí: entre comillas simples el " es literal y seguro.)
 })
 
-test('doble comilla: hostil neutralizado con backtick', () => {
+await atest('doble comilla: hostil neutralizado con backtick', async () => {
   const smart = require('../src/main/smart-exec')
   const byMatch = (frag) => smart.PATTERNS.find(p => typeof p.run === 'function' && String(p.match).includes(frag))
   const evil = 'a"$(calc)b'
-  const out1 = String(byMatch('descarga').run(['x', 'https://h.com/' + evil, undefined]))
-  assertOnlyEscaped(out1, smart.escapePs('https://h.com/' + evil), '$(calc)', 'descarga')
+  // (descarga usa fetchFile/Node directo, sin shell: sin superficie PS.)
   const out2 = String(byMatch('acceso').run(['x', undefined, evil, 'y']))
   assertOnlyEscaped(out2, smart.escapePs(evil), '$(calc)', 'acceso directo')
 })
@@ -1591,6 +1590,115 @@ test('scheduled task: texto con comillas anidado intacto', () => {
   const span = `''${hostile}''`
   assert.ok(out.includes(span), 'span citado intacto')
   assert.ok(!out.split(span).join('').includes('$(calc)'), 'sin resto fuera del citado')
+})
+
+console.log('\nFIX: primitivas de escape + gate de apps')
+
+test('escapePs/escapeLike/escapeSendKeys/psStr neutralizan', () => {
+  const smart = require('../src/main/smart-exec')
+  assert.equal(smart.escapePs('a"$(calc)b`c'), 'a`"`$(calc)b``c')
+  assert.equal(smart.psStr(`di 'hola'`), `'di ''hola'''`)
+  assert.equal(smart.escapeLike('a"$(calc)b*[x]'), 'a(calc)bx')
+  assert.ok(smart.escapeSendKeys('100% "ya" ^c').includes('{%}'))
+  assert.ok(!smart.escapeSendKeys('a+b').includes('+') || smart.escapeSendKeys('a+b').includes('{+}'))
+})
+
+await atest('app desconocida pide permiso y obedece el no', async () => {
+  const launch = require('../src/main/commands/launch')
+  let asked = null
+  launch.setConfirm(async (title) => { asked = title; return false })
+  const r = await launch.execute('abre zzzinexistente123')
+  assert.ok(asked && asked.includes('zzzinexistente123'), 'preguntó: ' + asked)
+  assert.ok(/Cancelado/.test(r.message))
+  launch.setConfirm(null)
+})
+
+await atest('buscar con texto hostil no rompe ni ejecuta', async () => {
+  const search = require('../src/main/commands/search')
+  // escapeLike ya unit-testeado; aquí: resuelve sin colgar ni reventar PS.
+  const r = await search.execute('busca en documentos a"$(calc)b-zzz-unico')
+  assert.ok(r && typeof r.message === 'string' && r.message.length > 0, JSON.stringify(r))
+})
+
+console.log('\nFIX: rendimiento (caché RAM + rotación)')
+
+test('memory: caché respeta escritura externa (mtime)', () => {
+  const memory = require('../src/main/memory')
+  const fs = require('fs')
+  const path = require('path')
+  const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'vox-perf-'))
+  memory.setUserDataPath(dir)
+  memory.set('a', 1)
+  assert.equal(memory.get('a'), 1)
+  const raw = JSON.parse(fs.readFileSync(path.join(dir, 'memory.json'), 'utf8'))
+  raw.preferences.a = 2
+  fs.writeFileSync(path.join(dir, 'memory.json'), JSON.stringify(raw))
+  const t = new Date(Date.now() + 2000)
+  fs.utimesSync(path.join(dir, 'memory.json'), t, t) // mtime distinto seguro
+  assert.equal(memory.get('a'), 2)
+})
+
+test('config: caché con defaults y refresh', () => {
+  const config = require('../src/main/config')
+  const fs = require('fs')
+  const path = require('path')
+  const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'vox-perf2-'))
+  config.setUserDataPath(dir)
+  const c1 = config.load()
+  assert.equal(c1.voiceModel, 'small')
+  config.save({ ...c1, wakeWord: 'vox' })
+  assert.equal(config.load().wakeWord, 'vox')
+})
+
+test('logger rota a 1MB (no crece infinito)', () => {
+  const logger = require('../src/main/logger')
+  const fs = require('fs')
+  const path = require('path')
+  const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'vox-log-'))
+  logger.init(dir)
+  const big = 'x'.repeat(20000)
+  for (let i = 0; i < 60; i++) logger.info(big)
+  const logs = fs.readdirSync(path.join(dir, 'logs')).filter(f => f.endsWith('.log')).sort()
+  assert.ok(logs.includes('app.1.log'), logs.join(','))
+  let total = 0
+  for (const f of logs) total += fs.statSync(path.join(dir, 'logs', f)).size
+  assert.ok(total < 4 * 1024 * 1024, 'tope ~3MB, real: ' + total)
+})
+
+console.log('\nFIX: UX + launch con permiso')
+
+await atest('descarga real a Descargas con errores honestos', async () => {
+  const http = require('http')
+  const fs = require('fs')
+  const path = require('path')
+  const os = require('os')
+  const data = Buffer.alloc(50000, 3)
+  const srv = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Length': data.length })
+    res.end(data)
+  })
+  await new Promise(r => srv.listen(0, '127.0.0.1', r))
+  try {
+    const smart = require('../src/main/smart-exec')
+    const url = `http://127.0.0.1:${srv.address().port}/t.bin`
+    const h = smart.route('descarga ' + url)[0]
+    assert.ok(h, 'rutea descarga')
+    const r = await h.pattern.handler([url, url, undefined])
+    assert.ok(String(r && r.message || r).includes('Descargado'), JSON.stringify(r).slice(0, 120))
+    const dest = path.join(os.homedir(), 'Downloads', 't.bin')
+    assert.ok(fs.readFileSync(dest).equals(data))
+    fs.unlinkSync(dest)
+    const bad = await h.pattern.handler(['descarga http://127.0.0.1:9/nada', 'http://127.0.0.1:9/nada', undefined])
+    assert.ok(bad && bad.success === false && /No pude descargar/.test(bad.message), JSON.stringify(bad).slice(0, 120))
+  } finally { srv.close() }
+})
+
+test('carpeta con .. no escapa de la base', () => {
+  const launch = require('../src/main/commands/launch')
+  const path = require('path')
+  const docs = path.join(process.env.USERPROFILE || '', 'Documents')
+  const r = launch.resolveFolderPath('abre carpeta ..')
+  assert.ok(r === docs || r.startsWith(docs + path.sep), r)
 })
 
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)

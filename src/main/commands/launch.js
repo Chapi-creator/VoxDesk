@@ -7,6 +7,13 @@ const path = require('path')
 function sanitize(str) { return str.replace(/[&|^<>";\r\n`$;]/g, '') }
 
 const USER = process.env['USERPROFILE'] || ''
+// Confirmación para apps desconocidas (inyectada por main.js; auto-sí en tests).
+let _confirmFn = null
+function setConfirm(fn) { _confirmFn = fn }
+async function _confirm(title, detail) {
+  if (!_confirmFn) return true
+  try { return await _confirmFn(title, detail) } catch { return false }
+}
 const PF = process.env['ProgramFiles'] || 'C:\\Program Files'
 const PF86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)'
 const LOCAL = process.env['LOCALAPPDATA'] || ''
@@ -174,7 +181,10 @@ function resolveFolderPath(text) {
 
   const skip = ['carpeta', 'carpetas', 'directorio', 'en', 'del', 'la', 'el', 'las', 'los', 'de']
   folderName = folderName.split(/\s+/).filter(w => !skip.includes(w)).join(' ')
-  return path.join(basePath, folderName)
+  // SEG: sin .. (no salir de la base conocida).
+  const resolved = path.normalize(path.join(basePath, folderName))
+  if (resolved !== basePath && !resolved.startsWith(basePath + path.sep)) return basePath
+  return resolved
 }
 
 function resolveAlias(name) {
@@ -314,13 +324,14 @@ function execute(text) {
 
   let appName = sanitize(raw.replace(/^(el |la |lo |un |una |unos |unas )/, ''))
   const words = appName.split(/\s+/)
-  let target, matchedLen = words.length
+  let target, matchedLen = words.length, knownApp = false
   if (APP_ALIASES[appName]) {
     target = APP_ALIASES[appName]
+    knownApp = true
   } else {
     for (let i = words.length; i > 0; i--) {
       const candidate = words.slice(0, i).join(' ')
-      if (APP_ALIASES[candidate]) { target = APP_ALIASES[candidate]; matchedLen = i; break }
+      if (APP_ALIASES[candidate]) { target = APP_ALIASES[candidate]; matchedLen = i; knownApp = true; break }
     }
     if (!target) { target = sanitize(appName); matchedLen = 1 }
   }
@@ -347,7 +358,21 @@ function execute(text) {
     }
 
     // Fase 16B3: escalera antes de disparar a ciegas.
+    // SEG: app desconocida (no alias) pide permiso; por voz/remoto no se
+    // ejecuta binarios arbitrarios sin que lo veas.
     const known = findApp(appName)
+    if (!knownApp) {
+      _confirm(`Abrir "${appName}"`, 'No está en apps conocidas. ¿Lo abro?').then(ok => {
+        if (!ok) { resolve({ success: true, message: 'Cancelado. ¿Otra cosa?', speak: true }); return }
+        runUnknown(target, known, appName).then(resolve)
+      })
+      return
+    }
+    runUnknown(target, known, appName).then(resolve)
+  })
+
+  function runUnknown(target, known, appName) {
+    return new Promise((resolve) => {
     const runTarget = (known && known.via !== 'alias') ? known.target : target
 
     exec(`"${runTarget}"`, { timeout: 3000, windowsHide: true }, (err) => {
@@ -373,5 +398,6 @@ function execute(text) {
     })
   })
 }
+}
 
-module.exports = { execute, resolveAlias, isBrowser, looksLikeUrl, findApp }
+module.exports = { execute, resolveAlias, isBrowser, looksLikeUrl, findApp, setConfirm, resolveFolderPath }

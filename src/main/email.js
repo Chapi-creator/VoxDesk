@@ -13,7 +13,7 @@ async function send(to, subject, body) {
     port: cfg.smtpPort || 587,
     secure: cfg.smtpPort === 465,
     auth: { user: cfg.smtpUser, pass: cfg.smtpPass },
-    tls: { rejectUnauthorized: false },
+    // SEG: verificar certificado (antes rejectUnauthorized:false permitía MITM).
   })
 
   try {

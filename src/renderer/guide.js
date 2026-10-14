@@ -109,7 +109,14 @@ class GuideManager {
     for (const cmd of help.commands) {
       const div = document.createElement('div')
       div.className = 'guide-item'
-      div.innerHTML = `<span class="cmd">${cmd} [...]</span><span class="desc"> </span>`
+      const ejemplo = {
+        abre: 'abre chrome', busca: 'busca en google gatos', escribe: 'escribe hola mundo',
+        di: 'di hola mundo', detente: 'detente', ayuda: 'ayuda', volumen: 'sube el volumen',
+        brillo: 'brillo al 70', alarma: 'alarma en 10 segundos', captura: 'captura la pantalla',
+        sistema: 'apaga el equipo', nota: 'anota comprar pan', clima: 'clima en Madrid',
+        traduce: 'traduce hola al inglés',
+      }[cmd] || `${cmd} …`
+      div.innerHTML = `<span class="cmd">${ejemplo}</span><span class="desc"> </span>`
       this.elements.list.appendChild(div)
     }
 

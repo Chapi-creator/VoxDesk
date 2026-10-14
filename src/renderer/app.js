@@ -55,10 +55,10 @@
         if (_alive(myFlow)) _busy = false
         return
       }
-    } catch {
+    } catch (e) {
       clearTimeout(_thinkTimer); _thinkTimer = null
       if (!_alive(myFlow)) return
-      ui.setError('Error interno')
+      ui.setError('Error: ' + ((e && e.message) || 'reintenta o revisa el micrófono'))
     }
     if (_alive(myFlow)) _busy = false
     ui.setIdle()

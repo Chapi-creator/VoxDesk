@@ -410,8 +410,20 @@ const PATTERNS = [
 
   // --- DOWNLOAD ---
   { match: /descarga\s+(https?:\/\/\S+)(?:\s+(?:a|en|para|como)\s+(.+))?/i,
-    run: (m) => `Invoke-WebRequest -Uri "${escapePs(m[1])}" -OutFile "${escapePs(m[2] || path.basename(m[1]) || 'download')}" -UseBasicParsing`,
-    msg: (m) => `Descargando ${path.basename(m[1])}` },
+    handler: async (m) => {
+      // Con fetch-file: reanuda, reintenta y avisa el motivo real (antes fallaba mudo).
+      const { fetchFile } = require('./fetch-file')
+      const base = (m[2]?.trim() || require('path').basename(m[1].split('?')[0]) || 'download').replace(/[<>:"|?*]/g, '')
+      const dest = require('path').join(require('os').homedir(), 'Downloads', base)
+      try {
+        await fetchFile(m[1], dest, {})
+        return `Descargado en Descargas: ${base}`
+      } catch (e) {
+        return { success: false, message: 'No pude descargar: ' + (e.message || 'revisa el enlace') }
+      }
+    },
+    ex: ['descarga https://ejemplo.com/a.zip'],
+    msg: 'Descargando…' },
 
   // --- DISPLAY ---
   { match: /(brillo)\s+(sube|subir|aumenta|baja|bajar|reduce)\s*(\d+)?/i,
@@ -1618,7 +1630,7 @@ function getHelp() {
       'cancela apagado / reinicio',
       'vacía papelera',
       'plan de energía [ahorro|balanceado|rendimiento]',
-      'bluetooth on/off',
+      'abre configuración de bluetooth',
       'conecta/desconecta VPN [nombre]',
       'busca/instala actualizaciones Windows',
       'sfc / dism (repara sistema)',
