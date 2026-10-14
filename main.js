@@ -335,7 +335,7 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
     const handler = registry.get(parsed.command)
     if (handler) {
       let args = parsed.args
-      if (parsed.command === 'volumen' || parsed.command === 'brillo' || parsed.command === 'sistema') args = t
+      if (parsed.command === 'volumen' || parsed.command === 'brillo' || parsed.command === 'sistema' || parsed.command === 'alarma') args = t
       const result = await handler.execute(args)
       if (stopped()) return STOPPED()
       if (result.success) return result

@@ -186,6 +186,10 @@ test('SettingsManager: init carga mics + save guarda mic/endpause', async () => 
   assert.equal(saved.endPause, 2)
   assert.equal(saved.patience, 'normal')
   assert.equal(saved.pttMode, false)
+  // Todas las opciones llegan al guardar (si falta una, la feature no persiste).
+  for (const k of ['apiKey', 'provider', 'model', 'apiUrl', 'configured', 'wakeWord', 'aiKeywords', 'followUp', 'remoteEnabled', 'voiceModel', 'proactivity', 'voice', 'voiceRate', 'smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'smtpFrom', 'systemPrompt', 'temperature', 'maxTokens']) {
+    assert.ok(saved[k] !== undefined, 'save incluye ' + k)
+  }
 })
 
 test('OnboardingManager: flujo 3 pasos con prueba', async () => {

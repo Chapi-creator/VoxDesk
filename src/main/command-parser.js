@@ -12,6 +12,7 @@ const ALIASES = {
   'silencio': 'volumen', 'silencia': 'volumen', 'mutear': 'volumen',
   'recuerda': 'alarma', 'recuérdame': 'alarma', 'recordar': 'alarma',
   'temporizador': 'alarma', 'temporiza': 'alarma', 'alarma': 'alarma',
+  'rutina': 'alarma', 'rutinas': 'alarma', 'recordatorio': 'alarma', 'recordatorios': 'alarma',
   'capturar': 'captura', 'captura': 'captura', 'foto': 'captura', 'fotografía': 'captura',
   'apaga': 'sistema', 'apagar': 'sistema', 'apagate': 'sistema',
   'reinicia': 'sistema', 'reiniciar': 'sistema', 'reiniciate': 'sistema',

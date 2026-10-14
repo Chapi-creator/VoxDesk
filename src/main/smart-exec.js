@@ -120,13 +120,13 @@ const PATTERNS = [
     msg: (m) => `Mouse en ${m[2]}, ${m[3]}` },
   { match: /clic(k|a)?\s*(izquierdo)?\s*$/i,
     run: PS_MOUSE,
-    msg: 'Click izquierdo' },
+    msg: 'Clic izquierdo' },
   { match: /clic(k|a)?\s+derecho/i,
     run: PS_MOUSE.replace(/LEFTDOWN/g, 'RIGHTDOWN').replace(/LEFTUP/g, 'RIGHTUP'),
-    msg: 'Click derecho' },
+    msg: 'Clic derecho' },
   { match: /doble\s*clic(k|a)?/i,
     run: PS_MOUSE.replace(/Start-Sleep -Milliseconds 50/, 'Start-Sleep -Milliseconds 50; Start-Sleep -Milliseconds 100').replace(/(LEFTDOWN.*?LEFTUP)/, '$1; Start-Sleep -Milliseconds 100; $1'),
-    msg: 'Doble click' },
+    msg: 'Doble clic' },
 
   // --- BROWSER ---
   { match: /(chrome|firefox|edge|brave)\s+(en\s+)?(modo\s+)?incognito/i,
@@ -747,7 +747,7 @@ public class MK {
     msg: 'Silenciar' },
 
   // --- PROCESS (upgraded) ---
-  { match: /(lista|muestra|qu[eé])\s+(procesos|ejecut|programas)/i,
+  { match: /(lista|muestra|qu[eé])\s+(los\s+)?(procesos|ejecut|programas)/i,
     run: `Get-Process | Where-Object { $_.MainWindowTitle -ne '' } | Select-Object Name, Id, @{N='Mem(MB)';E={[math]::Round($_.WS/1MB,1)}}, @{N='CPU(s)';E={[math]::Round($_.TotalProcessorTime.TotalSeconds,1)}} | Sort-Object 'Mem(MB)' -Desc | Format-Table -AutoSize | Out-String -Width 4096`,
     capture: true,
     msg: 'Listando procesos' },
@@ -1605,7 +1605,7 @@ function getHelp() {
       'trae [ventana] al frente / primer plano',
       'cierra [app] / cierra todo',
       'mouse a [X], [Y]',
-      'click izquierdo / click derecho / doble click',
+      'clic izquierdo / clic derecho / doble clic',
       'copia [texto] / pega / corta',
       'expulsa [USB]',
       'captura pantalla / captura región',
