@@ -33,7 +33,52 @@ function micCheck() {
   })
 }
 
-// Lista micrófonos vía wake (exe) o wake.py (dev). [] si no se puede.
+// Nombres de micros: PortAudio los trae rotos (mojibake UTF-8→latin1,
+// trunques MME de 32 letras, triplicados por API, basura @System32/%1).
+// Se limpian aquí (vale para exe y dev). Puro → testeable.
+function cleanDeviceName(name) {
+  let s = String(name || '')
+  // 1. Mojibake: "micrÃ³fono" -> "micrófono" (solo si el arreglo limpia).
+  if (/Ã/.test(s)) {
+    try {
+      const fixed = Buffer.from(s, 'latin1').toString('utf8')
+      if (!/[ÃÂ]/.test(fixed)) s = fixed
+    } catch {}
+  }
+  // 2. Resource strings: "@System32\...\bthhfenum.sys,#2;%1 ..." -> fuera.
+  s = s.replace(/@System32[^;]*;/gi, '')
+  s = s.replace(/%[0-9]/g, '')
+  s = s.replace(/[\r\n\t]+/g, ' ')
+  s = s.replace(/\s*;\s*\(/g, ' (')
+  // 3. Colapsar y recortar.
+  s = s.replace(/\s+/g, ' ').replace(/^[;,\s]+|[;,\s]+$/g, '').trim()
+  return s.slice(0, 80)
+}
+
+const JUNK_MIC = /^(input\s*\(\))?$/i
+const MAPPER_MIC = /asignador de sonido|controlador primario/i
+
+function cleanDevices(devs) {
+  const out = []
+  for (const d of devs || []) {
+    const name = cleanDeviceName(d && d.name)
+    if (!name || JUNK_MIC.test(name) || MAPPER_MIC.test(name)) continue
+    // 4. Deduplicar: mismo micro por 3 APIs (uno trunco). Si uno contiene
+    // al otro como prefijo, es el mismo: queda el más largo (más info).
+    const norm = (s) => s.toLowerCase().replace(/[^a-z0-9áéíóúñü]/g, '')
+    const key = norm(name)
+    let dup = -1
+    for (let i = 0; i < out.length; i++) {
+      const ok = norm(out[i].name)
+      if (ok.startsWith(key) || key.startsWith(ok)) { dup = i; break }
+    }
+    if (dup < 0) out.push({ index: d.index, name })
+    else if (name.length > out[dup].name.length) out[dup] = { index: d.index, name }
+  }
+  return out
+}
+
+// Lista micrófonos vía wake (exe) o wake.py (dev). Limpios. [] si no se puede.
 function listDevices() {
   return new Promise((resolve) => {
     const useExe = fs.existsSync(WAKE_EXE)
@@ -46,7 +91,7 @@ function listDevices() {
           const t = line.trim()
           if (!t) continue
           const o = JSON.parse(t)
-          if (o.devices) return resolve(o.devices)
+          if (o.devices) return resolve(cleanDevices(o.devices))
           if (o.error) return resolve([])
         }
         resolve([])
@@ -202,4 +247,4 @@ function enginePath() {
   return fs.existsSync(WAKE_EXE) ? WAKE_EXE : null
 }
 
-module.exports = { start, stop, isRunning, listDevices, micCheck, shouldHear, enginePath, wakeArgs, resolveModel, set onWake(v) { onWake = v }, set onText(v) { onText = v }, set onError(v) { onError = v }, set onLevel(v) { onLevel = v }, set onDown(v) { onDown = v }, set onIdle(v) { onIdle = v } }
+module.exports = { start, stop, isRunning, listDevices, micCheck, cleanDevices, cleanDeviceName, shouldHear, enginePath, wakeArgs, resolveModel, set onWake(v) { onWake = v }, set onText(v) { onText = v }, set onError(v) { onError = v }, set onLevel(v) { onLevel = v }, set onDown(v) { onDown = v }, set onIdle(v) { onIdle = v } }

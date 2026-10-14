@@ -1765,6 +1765,37 @@ await atest('probe: 401 es alcanzable, puerto cerrado no', async () => {
   } finally { srv.close() }
 })
 
+console.log('\nFIX: micros legibles')
+
+test('cleanDeviceName: mojibake, basura INF y recorte', () => {
+  const wake = require('../src/main/wake')
+  assert.equal(wake.cleanDeviceName('Auriculares con micrÃ³fono (Steren)'), 'Auriculares con micrófono (Steren)')
+  assert.equal(wake.cleanDeviceName('Mic (HD Audio Microphone)'), 'Mic (HD Audio Microphone)')
+  const r = wake.cleanDeviceName('Auriculares (@System32\\x.sys,#2;%1 Hands-Free%0\r\n;(Steren))')
+  assert.ok(!/System32|%|\r|\n/.test(r), r)
+  assert.ok(wake.cleanDeviceName('a'.repeat(200)).length <= 80)
+  assert.equal(wake.cleanDeviceName('  hola   mundo  '), 'hola mundo')
+  assert.equal(wake.cleanDeviceName(''), '')
+})
+
+test('cleanDevices: fuera duplicados, mappers y basura', () => {
+  const wake = require('../src/main/wake')
+  const out = wake.cleanDevices([
+    { index: 0, name: 'Asignador de sonido Microsoft - Input' },
+    { index: 1, name: 'Microphone (2- High Definition ' },
+    { index: 8, name: 'Microphone (2- High Definition Audio Device)' },
+    { index: 7, name: 'Controlador primario de captura de sonido' },
+    { index: 21, name: 'Input ()' },
+    { index: 9, name: 'Auriculares con micrÃ³fono (Steren AUD-795/SW)' },
+    { index: 17, name: 'Auriculares con micrÃ³fono (Steren AUD-795/SW)' },
+  ])
+  assert.ok(!out.some(d => /Asignador|Controlador primario|^Input/.test(d.name)), JSON.stringify(out))
+  assert.equal(out.filter(d => /High Definition/.test(d.name)).length, 1)
+  assert.equal(out.find(d => /High Definition/.test(d.name)).index, 8)
+  assert.equal(out.filter(d => /Steren/.test(d.name)).length, 1)
+  assert.ok(out.every(d => !/[ÃÂ]/.test(d.name)))
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }
