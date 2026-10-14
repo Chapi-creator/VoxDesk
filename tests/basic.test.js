@@ -1283,6 +1283,55 @@ test('startupBrief: saludo + pendientes + sugerencia', () => {
   assert.ok(!/cuando diga/.test(b4))
 })
 
+console.log('\nB3: personalidad')
+
+await atest('saludos y despedidas varían sin repetir', async () => {
+  const memory = require('../src/main/memory')
+  const smart = require('../src/main/smart-exec')
+  const fs = require('fs')
+  const dir = fs.mkdtempSync(require('path').join(require('os').tmpdir(), 'vox-b3-'))
+  memory.setUserDataPath(dir)
+  const say = async (txt) => (await smart.execute(txt)).message
+  const g1 = await say('hola')
+  const g2 = await say('hola')
+  const g3 = await say('hola')
+  assert.ok(g1 && g2 && g1 !== g2, 'saludos distintos')
+  assert.ok(g2 !== g3, 'tercero distinto del segundo')
+  const a1 = await say('adiós')
+  const a2 = await say('adiós')
+  assert.ok(a1 !== a2, 'despedidas distintas')
+})
+
+await atest('quién eres + nombre + estado por ánimo', async () => {
+  const memory = require('../src/main/memory')
+  const mood = require('../src/main/mood')
+  const smart = require('../src/main/smart-exec')
+  const fs = require('fs')
+  const dir = fs.mkdtempSync(require('path').join(require('os').tmpdir(), 'vox-b3b-'))
+  memory.setUserDataPath(dir)
+  const say = async (txt) => (await smart.execute(txt)).message
+  mood.setName('Bre')
+  assert.ok((await say('quién eres')).includes('Vox'))
+  assert.ok((await say('cómo te llamas')).includes('Bre'))
+  memory.set('vox_mood', 90)
+  assert.ok(/Genial/.test(await say('cómo estás')))
+  memory.set('vox_mood', 10)
+  assert.ok(/cansado/.test(await say('cómo estás')))
+})
+
+await atest('opiniones: banco temático + fallback variado', async () => {
+  const memory = require('../src/main/memory')
+  const smart = require('../src/main/smart-exec')
+  const fs = require('fs')
+  const dir = fs.mkdtempSync(require('path').join(require('os').tmpdir(), 'vox-b3c-'))
+  memory.setUserDataPath(dir)
+  const say = async (txt) => (await smart.execute(txt)).message
+  assert.ok((await say('qué opinas del café')).includes('café'))
+  assert.ok((await say('qué opinas sobre los lunes')).includes('lunes'))
+  const o1 = await say('qué opinas de los impuestos')
+  assert.ok(o1.includes('impuestos'))
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

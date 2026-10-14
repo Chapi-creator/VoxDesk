@@ -21,15 +21,16 @@ async function main() {
   }
   const bank = require('../tests/semantic-bank.json')
   const pats = smart.getPatternExamples()
+  const patsSem = smart.getSemanticExamples()
   const byCanon = new Map(pats.map(p => [p.canon, p]))
   for (const i of understand.INTENTS) byCanon.set(i.canon, { canon: i.canon, ex: i.ex })
   for (const i of understand.INTENTS) byCanon.set(i.canon, { canon: i.canon, ex: i.ex })
   for (const p of bank.paraphrases) {
     if (!byCanon.has(p.canon)) throw new Error('canon del banco no existe: ' + p.canon)
   }
-  // Candidatos con paridad fuzzy: INTENTS + ejemplos smart.
+  // Candidatos con paridad producción: INTENTS + ejemplos semánticos (sin chitchat).
   const tables = understand.INTENTS.map(i => ({ canon: i.canon, ex: i.ex }))
-  for (const p of pats) tables.push({ canon: p.canon, ex: p.ex })
+  for (const p of patsSem) tables.push({ canon: p.canon, ex: p.ex })
   const flat = []
   const groups = tables.map((t) => {
     const vecIdx = t.ex.map((ex) => { flat.push(ex); return flat.length - 1 })

@@ -11,6 +11,17 @@ const fun = require('./fun')
 const mood = require('./mood')
 
 
+// B3: rota respuestas sin repetir la anterior (personalidad con memoria).
+function vary(key, options) {
+  const k = 'vox_vary_' + key
+  let i = null
+  try { const v = memory.get(k); i = v === undefined || v === null ? null : parseInt(v) } catch {}
+  if (i === null || isNaN(i)) i = Math.floor(Math.random() * options.length)
+  const idx = ((i % options.length) + options.length) % options.length
+  try { memory.set(k, idx + 1) } catch {}
+  return options[idx]
+}
+
 // Fase 3: main.js inyecta el diálogo real con setConfirm. Sin inyectar, auto-sí (tests).
 let _confirmFn = null
 function setConfirm(fn) { _confirmFn = fn }
@@ -946,6 +957,90 @@ public class MK {
     capture: true,
     msg: (m) => m[0] },
 
+  // --- PERSONALIDAD (B3: quién soy, cómo estoy, gracias, adiós, opiniones) ---
+  { match: /^hola!?$/i,
+    noSem: true,
+    handler: () => {
+      const n = mood.getName()
+      return vary('hola', [
+        `¡Hola${n ? ' ' + n : ''}! ¿Qué hacemos?`,
+        `¡Hey${n ? ' ' + n : ''}! Aquí estoy.`,
+        `Hola, hola${n ? ' ' + n : ''}. Dime.`,
+      ])
+    },
+    ex: ['hola'],
+    msg: 'Saludando' },
+  { match: /qui[eé]n\s+eres|qui[eé]n\s+es\s+vox|pres[eé]ntate|hablame\s+de\s+ti/i,
+    noSem: true,
+    handler: () => {
+      const n = mood.getName()
+      return vary('quien', [
+        `Soy Vox, tu asistente de voz${n ? ', ' + n : ''}. Vivo en tu PC y obedezco en español.`,
+        `Vox, a tu servicio${n ? ' ' + n : ''}. Controlo tu equipo, te recuerdo cosas y cuento chistes malos.`,
+        `Tu asistente Vox${n ? ', ' + n : ''}: manos en el teclado, oídos en ti.`,
+      ])
+    },
+    ex: ['quién eres', 'quién es vox', 'preséntate'],
+    msg: 'Presentándome' },
+  { match: /c[oó]mo\s+est[aá]s|qu[eé]\s+tal\s+est[aá]s|como\s+andas/i,
+    noSem: true,
+    handler: () => {
+      const m = mood.getMood()
+      const n = mood.getName()
+      if (m >= 75) return `Genial${n ? ', ' + n : ''}. Hoy todo sale bien.`
+      if (m >= 45) return `Bien${n ? ', ' + n : ''}. Ni fu ni fa, pero contigo mejora.`
+      return `Algo cansado${n ? ', ' + n : ''}. Dame algo lindo que hacer y me animo.`
+    },
+    ex: ['cómo estás', 'qué tal estás'],
+    msg: 'Respondiendo estado' },
+  { match: /^(muchas\s+)?gracias(\s+(vox|amigo|maestro))?(!|\.)?$/i,
+    noSem: true,
+    handler: () => vary('gracias', [
+      'De nada. Para eso estoy.',
+      '¡Un placer! Sigue pidiendo.',
+      'De nada, de nada. ¿Otra cosa?',
+    ]),
+    ex: ['gracias', 'muchas gracias'],
+    msg: 'Agradeciendo' },
+  { match: /^(adi[oó]s|hasta\s+luego|nos\s+vemos|me\s+voy|chao|bye)(\s+vox)?(!|\.)?$/i,
+    noSem: true,
+    handler: () => vary('adios', [
+      'Nos vemos. Yo me quedo vigilando.',
+      '¡Adiós! Apaga la luz al salir (es broma, no puedo).',
+      'Hasta luego. No tardes.',
+    ]),
+    ex: ['adiós', 'hasta luego', 'nos vemos'],
+    msg: 'Despedida' },
+  { match: /c[oó]mo\s+te\s+llamas|cu[aá]l\s+es\s+tu\s+nombre/i,
+    noSem: true,
+    handler: () => {
+      const n = mood.getName()
+      return n ? `Me llamo Vox, y tú eres ${n}. Buen equipo.` : 'Me llamo Vox. ¿Y tú? Dime "me llamo..." y te recuerdo.'
+    },
+    ex: ['cómo te llamas', 'cuál es tu nombre'],
+    msg: 'Dando mi nombre' },
+  { match: /qu[eé]\s+opinas\s+(?:de|sobre|del)\s+(.+)/i,
+    noSem: true,
+    handler: (m) => {
+      const tema = m[1].trim().toLowerCase()
+      const bank = [
+        [/caf[eé]/, 'El café es el verdadero sistema operativo. Sin él ni yo funciono.'],
+        [/lunes/, 'El lunes es solo un martes con mala fama. Ánimo.'],
+        [/windows|microsoft/, 'Windows y yo nos llevamos bien. Él pone las ventanas, yo las abro.'],
+        [/lluvia|llover/, 'La lluvia es perfecta para programar. O para no hacer nada, también vale.'],
+        [/trabajo|trabajar/, 'Trabajar está bien, pero descansar también es productivo. Lo dice la ciencia (yo).'],
+        [/ia|inteligencia artificial|robots?/, 'La IA es genial. Yo soy su primo humilde y local.'],
+      ]
+      for (const [re, op] of bank) if (re.test(tema)) return op
+      return vary('opinion', [
+        `Sobre "${m[1].trim()}" no tengo doctorado, pero me cae bien.`,
+        `Mi opinión sobre "${m[1].trim()}": interesante tema para un martes.`,
+        `No lo he pensado mucho, pero "${m[1].trim()}" suena a algo importante.`,
+      ])
+    },
+    ex: ['qué opinas del café', 'qué opinas sobre los lunes'],
+    msg: (m) => `Opinando sobre ${m[1]}` },
+
   // --- SEARCH HISTORY ---
   { match: /qu[eé]\s+(le\s+)?ped[ií]|historial|qu[eé]\s+(dije|dijiste|hicimos?)\s+(antes|ayer|anterior)/i,
     handler: async () => {
@@ -1625,10 +1720,16 @@ function saveHistory(query, result) {
   } catch {}
 }
 
-module.exports = { execute, getHelp, setConfirm, route, pickBest, PATTERNS, getPatternExamples }
+module.exports = { execute, getHelp, setConfirm, route, pickBest, PATTERNS, getPatternExamples, getSemanticExamples }
 
 // Fase 17: ejemplos declarados por patrón (fuente única para fuzzy + self-test).
 function getPatternExamples() {
   return PATTERNS.filter(p => Array.isArray(p.ex) && p.ex.length)
     .map(p => ({ pattern: p, canon: p.ex[0], ex: p.ex }))
+}
+
+// B3: ejemplos para la red (sin chitchat: los saludos atraen frases cortas ajenas;
+// el fuzzy+regex los cubre exactos). Fuente del candidateTables semántico.
+function getSemanticExamples() {
+  return getPatternExamples().filter(e => !e.pattern.noSem)
 }

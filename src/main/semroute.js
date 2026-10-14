@@ -200,7 +200,7 @@ function candidateTables() {
   const understand = require('./understand')
   const smart = require('./smart-exec')
   const tables = understand.INTENTS.map(i => ({ canon: i.canon, ex: i.ex }))
-  for (const p of smart.getPatternExamples()) tables.push({ canon: p.canon, ex: p.ex })
+  for (const p of smart.getSemanticExamples()) tables.push({ canon: p.canon, ex: p.ex })
   const flat = []
   const groups = tables.map((t) => {
     const vecIdx = t.ex.map((ex) => { flat.push(ex); return flat.length - 1 })
