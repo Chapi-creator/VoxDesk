@@ -1,6 +1,8 @@
 const { runPs } = require('../run-ps')
 
-function sanitize(str) { return str.replace(/'/g, "''").replace(/[;$&|<>]/g, '') }
+// REGLA ANTI-INYECCIÓN: texto del usuario a PowerShell SOLO vía sanitize()
+// (comilla simple/doublada neutralizada). Prohibido interpolar crudo.
+function sanitize(str) { return str.replace(/'/g, "''").replace(/[;"`$&|<>]/g, '') }
 
 // Fase 6: mismo freno que smart-exec — main.js lo inyecta. Sin inyectar, auto-sí (tests).
 let _confirmFn = null
@@ -105,6 +107,7 @@ function executeSystem(text) {
     if (!parentDir || parentDir === 'escritorio') parentDir = '$env:USERPROFILE\\Desktop'
     else if (parentDir === 'documentos') parentDir = '$env:USERPROFILE\\Documents'
     else if (parentDir === 'descargas') parentDir = '$env:USERPROFILE\\Downloads'
+    else parentDir = sanitize(parentDir)
     runPs(`New-Item -Path "${parentDir}" -Name '${sanitize(folderName)}' -ItemType Directory -Force | Out-Null`)
     return Promise.resolve({ success: true, message: `Carpeta "${folderName}" creada`, speak: true })
   }
@@ -112,7 +115,8 @@ function executeSystem(text) {
   if (/fondo|wallpaper/i.test(lower)) {
     const imgPath = lower.replace(/fondo|wallpaper|pantalla|de|el|la|cambia|cambiar|pon|poner|set/gi, '').trim()
     if (imgPath && imgPath.includes('.')) {
-      const escaped = imgPath.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+      // escapePs (backtick), no backslash: en PS \" no escapa, rompería el string.
+      const escaped = imgPath.replace(/`/g, '``').replace(/\$/g, '`$').replace(/"/g, '`"')
       runPs(`Add-Type -TypeDefinition @" using System; using System.Runtime.InteropServices; public class WP { [DllImport("user32.dll")] public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni); } "@; [WP]::SystemParametersInfo(20, 0, "${escaped}", 2)`)
       return Promise.resolve({ success: true, message: 'Fondo cambiado', speak: true })
     }

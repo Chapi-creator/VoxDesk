@@ -32,6 +32,7 @@ let wakeMode = true
 let tray = null
 let wakeRestartTimer = null
 let _macroBuffer = []
+let _cmdGen = 0 // Kill-switch: parar lo incrementa; _handleOne aborta tramos.
 
 function startServer() {
   return new Promise((resolve) => {
@@ -136,32 +137,40 @@ ipcMain.handle('speech:recognize', async (_event, opts) => {
 ipcMain.handle('speech:cancel', async () => {
   const trigger = path.join(os.tmpdir(), 'voxdesk_stop_trigger')
   try { fs.writeFileSync(trigger, '1') } catch {}
+  _cmdGen++ // Kill-switch: lo que siga corriendo del comando en curso aborta.
   tts.stop()
   return true
 })
 
 let _followUntil = 0
-let _dictateUntil = 0
+const dictate = require('./src/main/dictate')
+const _dictateSt = dictate.create()
 
-// Modo dictado: todo lo que sigue se ESCRIBE hasta "termina dictado" o 2 min.
+// Modo dictado: todo lo que sigue se ESCRIBE hasta "termina dictado",
+// 2 min de silencio o 10 min duros (antes se extendía sin tope hablando).
 async function maybeDictate(transcript) {
   const t = String(transcript || '').trim()
   if (/^(termina|terminar|para|det[eé]n)(\s+(el|de))?\s+dictado$/i.test(t) || /^detente$/i.test(t)) {
-    if (_dictateUntil) {
-      _dictateUntil = 0
+    if (dictate.classify(_dictateSt, Date.now())) {
+      dictate.stop(_dictateSt)
       return { success: true, message: 'Dictado terminado.', speak: true }
     }
     return null
   }
   if (/^(empieza|inicia|activa|modo)\s+dictado$/i.test(t)) {
-    _dictateUntil = Date.now() + 2 * 60000
+    dictate.start(_dictateSt, Date.now())
     return { success: true, message: 'Dictando: todo lo que digas se escribe. Di "termina dictado" para parar.', speak: true }
   }
-  if (_dictateUntil && Date.now() < _dictateUntil) {
-    _dictateUntil = Date.now() + 2 * 60000
+  const c = dictate.classify(_dictateSt, Date.now())
+  if (c === 'hard-out') {
+    dictate.stop(_dictateSt)
+    return { success: true, message: 'Dictado parado por tiempo (10 min). Di "empieza dictado" para seguir.', speak: true }
+  }
+  if (c === 'write') {
+    dictate.poke(_dictateSt, Date.now())
     return await require('./src/main/commands/type').execute(t)
   }
-  _dictateUntil = 0
+  dictate.stop(_dictateSt)
   return null
 }
 ipcMain.handle('followup:arm', () => {
@@ -212,21 +221,33 @@ systemCmds.setConfirm(confirmDestructive)
 // ejecuta para conservar argumentos. Umbrales medidos (semroute + banco).
 const SEM_TIMEOUT = 8000
 let _semTables = null
+const _semFlight = semroute.sharedFlight()
+// Una sola construcción en vuelo (warmup y consultas comparten; nada se congela:
+// si tarda >12 s, esta orden usa reglas y la próxima ya vuela).
+function getSemTables() {
+  if (_semTables) return Promise.resolve(_semTables)
+  return _semFlight(async () => {
+    const { flat, groups } = semroute.candidateTables()
+    const vecs = await semroute.candidateVecs(config.modelsDir(), flat, { timeoutMs: 60000 })
+    _semTables = { groups, vecs }
+    return _semTables
+  }, 12000)
+}
 async function semanticBest(t) {
   const sem = require('./src/main/semroute')
   if (sem.status(config.modelsDir()).available !== true) return null
-  if (!_semTables) {
-    const { flat, groups } = sem.candidateTables()
-    const vecs = await sem.candidateVecs(config.modelsDir(), flat, { timeoutMs: 60000 })
-    _semTables = { groups, vecs }
-  }
+  const tables = await getSemTables()
   const [q] = await sem.embed(config.modelsDir(), [t], { timeoutMs: SEM_TIMEOUT })
-  const b = sem.bestGroup(q, _semTables.vecs, _semTables.groups)
+  const b = sem.bestGroup(q, tables.vecs, tables.groups)
   return b.group < 0 ? null : b
 }
 
 async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!transcript) return { success: false, message: 'No te escuché' }
   if (_depth > 5) return { success: false, message: 'Demasiadas macros anidadas' }
+  // Kill-switch: cada tramo largo revisa si se pidió parar.
+  const _g = _cmdGen
+  const stopped = () => _g !== _cmdGen
+  const STOPPED = () => ({ success: false, message: 'Detenido', speak: false, stop: true })
 
   const _cfg = config.load()
   const aiWords = _cfg.aiKeywords || 'ia,bot,asistente'
@@ -252,6 +273,7 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
       let allOk = true
       for (const part of parts) {
         if (_depth > 5) { allOk = false; break }
+        if (stopped()) return STOPPED()
         const r = await _handleOne(part, _depth + 1)
         if (r && r.success) messages.push(r.message)
         else { allOk = false; break }
@@ -284,19 +306,19 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
   }
 
   // B1: "sí" ejecuta lo que pregunté; "no" lo cancela (90 s para responder).
-  const _pending = memory.get('vox_pending')
+  const _pending = memory.get('vox_confirm')
   if (_pending && _pending.canon) {
     const dec = followup.checkPending(t, _pending)
     if (dec && dec.do === 'run') {
-      memory.del('vox_pending')
+      memory.del('vox_confirm')
       return await _handleOne(dec.command, _depth + 1)
     }
     if (dec && dec.do === 'cancel') {
-      memory.del('vox_pending')
+      memory.del('vox_confirm')
       return { success: true, message: 'Cancelado. ¿Otra cosa?', speak: true }
     }
-    if (dec && dec.do === 'expired') memory.del('vox_pending')
-    else if (!dec) memory.del('vox_pending') // dijo otra cosa: la pregunta muere
+    if (dec && dec.do === 'expired') memory.del('vox_confirm')
+    else if (!dec) memory.del('vox_confirm') // dijo otra cosa: la pregunta muere
   }
 
   // B1: continuaciones ("a las 8", "y en Madrid") sobre lo último hecho.
@@ -311,6 +333,7 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
       let args = parsed.args
       if (parsed.command === 'volumen' || parsed.command === 'brillo' || parsed.command === 'sistema') args = t
       const result = await handler.execute(args)
+      if (stopped()) return STOPPED()
       if (result.success) return result
     }
   }
@@ -321,6 +344,7 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
     if (_depth > 5) return { success: false, message: 'Macro omitida — demasiado anidamiento' }
     const said = []
     for (const cmd of macroCmds) {
+      if (stopped()) return STOPPED()
       const r = await _handleOne(cmd, _depth + 1)
       if (r && r.message) said.push(r.message)
     }
@@ -357,11 +381,13 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
   }
 
   const smartResult = await smartExec.execute(t)
+  if (stopped()) return STOPPED()
   if (smartResult) {
     if (smartResult._macro && Array.isArray(smartResult._macro)) {
       if (_depth > 5) return { success: false, message: 'Macro omitida — demasiado anidamiento' }
       const said = []
       for (const cmd of smartResult._macro) {
+        if (stopped()) return STOPPED()
         const r = await _handleOne(cmd, _depth + 1)
         if (r && r.message) said.push(r.message)
       }
@@ -392,6 +418,7 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
     }
     const fz = understand.route(t, XTRA)
     try { semBest = await semanticBest(t) } catch { semBest = null }
+    if (stopped()) return STOPPED()
     if (fz && fz.conf >= understand.HI) {
       return await _handleOne(fz.canon + (fz.args ? ' ' + fz.args : ''), _depth + 1, true)
     }
@@ -401,7 +428,7 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
     }
     if (fz && fz.conf >= understand.MID) {
       // B1: guardo lo preguntado — un "sí" lo ejecuta sin repetir.
-      try { memory.set('vox_pending', { canon: fz.canon + (fz.args ? ' ' + fz.args : ''), at: Date.now() }) } catch {}
+      try { memory.set('vox_confirm', { canon: fz.canon + (fz.args ? ' ' + fz.args : ''), at: Date.now() }) } catch {}
       return { success: true, message: `¿Quisiste decir "${fz.canon}"? Di sí y lo hago.`, speak: true }
     }
   }
@@ -416,7 +443,7 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
   const _sug = understand.routeTop(t, XTRA, 3).filter(s => s.conf >= 0.35 && s.conf < understand.MID).slice(0, 2).map(s => `"${s.canon}"`)
   if (semBest && semBest.sim >= semroute.SEM_ASK && !_sug.some(s => s.includes(semBest.canon))) {
     if (_sug.length === 0) {
-      try { memory.set('vox_pending', { canon: semBest.canon, at: Date.now() }) } catch {}
+      try { memory.set('vox_confirm', { canon: semBest.canon, at: Date.now() }) } catch {}
       return { success: true, message: `¿Quisiste decir "${semBest.canon}"? Di sí y lo hago.`, speak: true }
     }
     if (_sug.length < 2) _sug.push(`"${semBest.canon}"`)
@@ -536,7 +563,12 @@ ipcMain.handle('ollama:install', async () => {
 
 ipcMain.handle('ollama:pull', async (_event, model) => {
   const m = String(model || 'qwen2.5:1.5b').trim() || 'qwen2.5:1.5b'
-  exec(`ollama pull ${m}`, { timeout: 30 * 60000, maxBuffer: 10 * 1024 * 1024 }, (err) => {
+  // FIX: el nombre iba crudo al shell (inyección). Solo etiquetas ollama válidas.
+  if (!llm.validOllamaTag(m)) {
+    if (mainWindow) mainWindow.webContents.send('ollama:pull-done', { model: m, ok: false, error: 'nombre inválido' })
+    return false
+  }
+  require('child_process').execFile('ollama', ['pull', m], { timeout: 30 * 60000, maxBuffer: 10 * 1024 * 1024 }, (err) => {
     if (mainWindow) mainWindow.webContents.send('ollama:pull-done', { model: m, ok: !err })
   })
   return true
@@ -623,7 +655,8 @@ ipcMain.handle('voices:add', async (_event, name, url) => {
   } catch {
     base = path.join(__dirname, 'vendor', 'voices')
   }
-  return await voices.addCustomVoice(name, url, base)
+  const g = _cmdGen
+  return await voices.addCustomVoice(name, url, base, { shouldAbort: () => g !== _cmdGen })
 })
 
 ipcMain.handle('voices:remove', (_event, file) => {
@@ -657,8 +690,10 @@ ipcMain.handle('models:download-large', async () => {
   largeDlBusy = true
   try {
     const { downloadLarge } = require('./src/main/model-download')
+    const g = _cmdGen
     return await downloadLarge({
       modelsDir: config.modelsDir(),
+      shouldAbort: () => g !== _cmdGen,
       send: (data) => { if (mainWindow) mainWindow.webContents.send('models:progress', data) },
     })
   } finally {
@@ -686,8 +721,10 @@ ipcMain.handle('semantic:download', async () => {
   semDlBusy = true
   try {
     const { downloadSemantic } = require('./src/main/semantic-download')
+    const g = _cmdGen
     return await downloadSemantic({
       modelsDir: config.modelsDir(),
+      shouldAbort: () => g !== _cmdGen,
       send: (data) => { if (mainWindow) mainWindow.webContents.send('semantic:progress', data) },
     })
   } finally {
@@ -756,7 +793,7 @@ async function handleAndTrack(transcript, depth = 0) {
   try {
     if (r && r.success) {
       mood.addMood(4)
-      try { memory.del('vox_pending') } catch {} // B1: éxito mata preguntas viejas
+      try { memory.del('vox_confirm') } catch {} // B1: éxito mata preguntas viejas
       const s = mood.bumpStreak()
       if (s.n === 5) mood.addMood(10)
     } else if (r && !r.success && r.message && r.message.startsWith('No entendí')) {
@@ -1060,13 +1097,13 @@ app.whenReady().then(async () => {
   setTimeout(() => lifeTick(), 30000)
   setInterval(() => lifeTick(), 60000)
   mark('ready')
-  // C: precalienta el cerebro semántico en fondo (si descargado): la primera
-  // orden no paga el arranque del sidecar (~10 s). Nunca bloquea ni rompe.
+  // C: precalienta el cerebro semántico en fondo (si descargado): comparte el
+  // vuelo con las consultas (getSemTables) para no construirlo dos veces.
   setTimeout(() => {
     try {
       const sem = require('./src/main/semroute')
       if (sem.status(config.modelsDir()).available) {
-        sem.candidateVecs(config.modelsDir(), sem.candidateTables().flat)
+        getSemTables()
           .then(() => sem.embed(config.modelsDir(), ['hola']))
           .catch(() => {})
       }

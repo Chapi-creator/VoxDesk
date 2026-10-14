@@ -13,9 +13,25 @@
 
   let _thinkTimer = null
   let _idleTimer = null
+  // Kill-switch visible: mientras hay flujo en curso, el botón de hablar PARA.
+  // Los resultados tardíos se descartan (cada stop invalida el flujo anterior).
+  let _busy = false
+  let _flowId = 0
+  const _alive = (myFlow) => myFlow === _flowId && _busy
+
+  function stopAll() {
+    _flowId++
+    _busy = false
+    window.api.stopSpeaking()
+    window.api.cancelSpeech()
+    ui.showResponse('Detenido')
+    ui.setIdle()
+  }
 
   async function handleCommand(transcript) {
     if (_idleTimer) { clearTimeout(_idleTimer); _idleTimer = null }
+    _busy = true
+    const myFlow = ++_flowId
     const prev = ui.elements.transcript?.textContent
     if (prev && prev !== '""') ui.pushHistory(prev.replace(/^"/,'').replace(/"$/,''), ui.elements.response?.textContent || '')
     ui.showTranscript(transcript)
@@ -24,7 +40,8 @@
     try {
       const result = await window.api.executeCommand(transcript)
       clearTimeout(_thinkTimer); _thinkTimer = null
-      if (result.stop) { ui.showResponse(result.message || 'Detenido'); ui.setIdle(); return }
+      if (!_alive(myFlow)) return
+      if (result.stop) { ui.showResponse(result.message || 'Detenido'); ui.setIdle(); _busy = false; return }
       ui.setRecording(!!result.recording)
       if (result._tts !== undefined) ui.setTtsAvailable(result._tts)
       ui.showResponse(result.message)
@@ -32,20 +49,26 @@
       if (result.success && result.speak) {
         ui.setSpeaking()
         await say(result.message)
+        if (!_alive(myFlow)) return
       } else {
         _idleTimer = setTimeout(() => { _idleTimer = null; ui.setIdle() }, 3000)
+        if (_alive(myFlow)) _busy = false
         return
       }
     } catch {
       clearTimeout(_thinkTimer); _thinkTimer = null
+      if (!_alive(myFlow)) return
       ui.setError('Error interno')
     }
+    if (_alive(myFlow)) _busy = false
     ui.setIdle()
   }
 
   async function handleResult(result) {
     clearTimeout(_thinkTimer); _thinkTimer = null
-    if (result.stop) { ui.showResponse(result.message || 'Detenido'); ui.setIdle(); return }
+    _busy = true
+    const myFlow = ++_flowId
+    if (result.stop) { ui.showResponse(result.message || 'Detenido'); ui.setIdle(); _busy = false; return }
     ui.setProcessing()
     ui.setRecording(!!result.recording)
     if (result._tts !== undefined) ui.setTtsAvailable(result._tts)
@@ -54,23 +77,24 @@
     if (result.success && result.speak) {
       ui.setSpeaking()
       await say(result.message)
-      ui.setIdle()
+      if (!_alive(myFlow)) return
     } else {
       _idleTimer = setTimeout(() => { _idleTimer = null; ui.setIdle() }, 3000)
+      if (_alive(myFlow)) _busy = false
+      return
     }
+    if (_alive(myFlow)) _busy = false
+    ui.setIdle()
   }
 
   ui.onToggle = () => {
     if (settings.open || guide.open) return
+    if (_busy) { stopAll(); return }
     if (voice.isListening) voice.stop()
     else voice.start()
   }
 
-  ui.onStop = () => {
-    window.api.stopSpeaking()
-    window.api.cancelSpeech()
-    ui.setIdle()
-  }
+  ui.onStop = () => { stopAll() }
 
   ui.onFeedback = (transcript, good) => {
     window.api.cacheFeedback(transcript, good).catch(() => {})

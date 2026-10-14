@@ -345,4 +345,9 @@ async function ask(prompt) {
   }
 }
 
-module.exports = { ask, listModels, clearHistory, PROVIDERS, validateKey }
+module.exports = { ask, listModels, clearHistory, PROVIDERS, validateKey, validOllamaTag }
+
+// FIX: el tag de ollama pull iba crudo al shell. Solo etiquetas válidas.
+function validOllamaTag(m) {
+  return /^[\w][\w.:@/-]{0,60}$/.test(String(m || '').trim())
+}

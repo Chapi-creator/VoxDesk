@@ -38,8 +38,9 @@ async function downloadLarge(opts = {}) {
       else send(e)
     }
     try {
-      await fetchFile(url, zip, { minBytes: minZipBytes, send: mapSend, onRetry: (i) => send({ phase: 'retry', attempt: i }) })
+      await fetchFile(url, zip, { minBytes: minZipBytes, send: mapSend, onRetry: (i) => send({ phase: 'retry', attempt: i }), shouldAbort: opts.shouldAbort })
     } catch (e) {
+      if (/cancelado/.test(e.message || '')) return fail('descarga cancelada')
       return fail('descarga falló 3 veces: ' + (e.message || e))
     }
     if (!mc.zipLooksComplete(zip, minZipBytes)) return fail('zip incompleto o corrupto, reintenta para continuar')

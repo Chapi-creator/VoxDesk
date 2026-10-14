@@ -34,6 +34,7 @@ async function downloadSemantic(opts = {}) {
       try {
         await fetchFile(urlOver[spec.key] || spec.url, f[spec.key], {
           expectedBytes: opts.exact === false ? 0 : spec.bytes,
+          shouldAbort: opts.shouldAbort,
           send: () => {
             // Progreso global exacto: lo ya bajado + tamaño actual en disco.
             let cur = 0
@@ -47,6 +48,7 @@ async function downloadSemantic(opts = {}) {
           onRetry: (n) => send({ phase: 'retry', attempt: n, file: spec.key }),
         })
       } catch (e) {
+        if (/cancelado/.test(e.message || '')) return fail('descarga cancelada')
         return fail(`bajando ${spec.key}: ` + (e.message || e))
       }
       doneBytes += spec.bytes

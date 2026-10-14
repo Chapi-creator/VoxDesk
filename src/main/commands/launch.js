@@ -2,7 +2,9 @@ const { exec, execFileSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 
-function sanitize(str) { return str.replace(/[&|^<>";\r\n]/g, '') }
+// REGLA ANTI-INYECCIÓN: texto del usuario a shell SOLO vía sanitize()
+// (sin comillas, backticks, $, ;, pipes). Prohibido interpolar crudo.
+function sanitize(str) { return str.replace(/[&|^<>";\r\n`$;]/g, '') }
 
 const USER = process.env['USERPROFILE'] || ''
 const PF = process.env['ProgramFiles'] || 'C:\\Program Files'

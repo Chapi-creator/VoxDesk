@@ -137,6 +137,28 @@ async function run() {
     sem.stop()
   })
 
+  await test('sharedFlight: comparte, topa y reintenta', async () => {
+    let n = 0
+    const build = async () => { n++; await new Promise(r => setTimeout(r, 30)); return 'v' }
+    const fl = sem.sharedFlight()
+    const [a, b] = await Promise.all([fl(build, 1000), fl(build, 1000)])
+    assert.equal(a, 'v')
+    assert.equal(b, 'v')
+    assert.equal(n, 1)
+    const slow = async () => { await new Promise(r => setTimeout(r, 200)); return 's' }
+    const fl2 = sem.sharedFlight()
+    let err = ''
+    try { await fl2(slow, 50) } catch (e) { err = e.message }
+    assert.ok(/tope/.test(err), err)
+    assert.equal(await fl2(slow, 1000), 's')
+    let failN = 0
+    const bad = async () => { failN++; throw new Error('pum') }
+    const fl3 = sem.sharedFlight()
+    try { await fl3(bad, 500) } catch {}
+    try { await fl3(bad, 500) } catch {}
+    assert.equal(failN, 2)
+  })
+
   sem.stop()
   console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
   process.exit(failed ? 1 : 0)

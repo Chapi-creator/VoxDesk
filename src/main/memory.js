@@ -1,3 +1,10 @@
+// Memoria persistente (memory.json). REGLA: cada clave tiene UN dueño (abajo).
+// Reusar una clave con otra forma rompe dos funciones (pasó con vox_pending:
+// approvals guardaba array y la voz objeto). Nueva clave → anótala aquí.
+// Dueños: vox_confirm (main.js: pregunta "¿quisiste decir?"), vox_pending
+// (approvals.js: cola remota, array), vox_ctx/vox_quiet/vox_mood/vox_name/
+// vox_streak/vox_cmd_times/vox_stats/vox_routines/custom_commands/macros/
+// reminders (sus módulos), life STAMPS (life.js).
 const fs = require('fs')
 const path = require('path')
 

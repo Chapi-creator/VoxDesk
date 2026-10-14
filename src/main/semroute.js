@@ -208,6 +208,25 @@ function candidateTables() {
   })
   return { tables, flat, groups }
 }
+// Vuelo compartido con tope: una construcción pesada, muchos consumidores.
+// Si tarda más del tope, el llamador sigue sin ella (la construcción termina
+// en fondo y la próxima la aprovecha). Los fallos permiten reintentar.
+function sharedFlight() {
+  let flying = null
+  return (build, ms) => {
+    if (!flying) {
+      flying = build().then(
+        (v) => { flying = null; return v },
+        (e) => { flying = null; throw e },
+      )
+    }
+    return Promise.race([
+      flying,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('tope vuelo')), ms)),
+    ])
+  }
+}
+
 async function candidateVecs(modelsDir, texts, over = {}) {
   const f = modelFiles(modelsDir)
   // pad128-v1 invalida cachés del pooling antiguo (padding variable → sesgo de lote).
@@ -224,5 +243,5 @@ async function candidateVecs(modelsDir, texts, over = {}) {
 
 module.exports = {
   MODEL_ID, DIM, SEM_AGREE, SEM_ASK,
-  status, modelFiles, ping, embed, stop, cosine, routeSemantic, bestGroup, candidateVecs, candidateTables,
+  status, modelFiles, ping, embed, stop, cosine, routeSemantic, bestGroup, candidateVecs, candidateTables, sharedFlight,
 }

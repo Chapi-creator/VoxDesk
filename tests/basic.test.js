@@ -1411,6 +1411,188 @@ test('segundo tick no repite buenos días', () => {
   assert.equal(a2, null)
 })
 
+console.log('\nFIX2: voces verificadas + dictate con tope + ollama seguro')
+
+await atest('voz trunca se rechaza (aunque >1MB)', async () => {
+  const http = require('http')
+  const fs = require('fs')
+  const path = require('path')
+  const voices = require('../src/main/voices')
+  const memory = require('../src/main/memory')
+  const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'vox-vx-'))
+  memory.setUserDataPath(dir)
+  const big = Buffer.alloc(3 * 1024 * 1024, 7)
+  const srv = http.createServer((req, res) => {
+    if (req.url.endsWith('.json')) { res.writeHead(200, { 'Content-Length': 50 }); res.end('{"ok":true}'); return }
+    res.writeHead(200, { 'Content-Length': big.length })
+    res.end(big.subarray(0, 2 * 1024 * 1024)) // corta a 2MB de 3MB
+  })
+  await new Promise(r => srv.listen(0, '127.0.0.1', r))
+  try {
+    const url = `http://127.0.0.1:${srv.address().port}/v.onnx`
+    let err = ''
+    try {
+      await voices.addCustomVoice('x', url, dir, { allowHost: /127\.0\.0\.1/ })
+    } catch (e) { err = e.message }
+    assert.ok(/trunco|cortada|incompleto|falló/i.test(err), err)
+  } finally { srv.close() }
+})
+
+await atest('voz con json inválido se rechaza', async () => {
+  const http = require('http')
+  const fs = require('fs')
+  const path = require('path')
+  const voices = require('../src/main/voices')
+  const memory = require('../src/main/memory')
+  const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'vox-vx2-'))
+  memory.setUserDataPath(dir)
+  const big = Buffer.alloc(Math.floor(1.2 * 1024 * 1024), 7)
+  const srv = http.createServer((req, res) => {
+    const bad = Buffer.from('<html>no hay</html>', 'utf8')
+    if (req.url.endsWith('.json')) { res.writeHead(200, { 'Content-Length': bad.length }); res.end(bad); return }
+    res.writeHead(200, { 'Content-Length': big.length })
+    res.end(big)
+  })
+  await new Promise(r => srv.listen(0, '127.0.0.1', r))
+  try {
+    const url = `http://127.0.0.1:${srv.address().port}/v.onnx`
+    let err = ''
+    try {
+      await voices.addCustomVoice('x', url, dir, { allowHost: /127\.0\.0\.1/ })
+    } catch (e) { err = e.message }
+    assert.ok(/inválida/i.test(err), err)
+  } finally { srv.close() }
+})
+
+test('dictate: escribe, expira por silencio y por tope duro', () => {
+  const dictate = require('../src/main/dictate')
+  const st = dictate.create()
+  assert.equal(dictate.classify(st, 1000), null)
+  dictate.start(st, 1000)
+  assert.equal(dictate.classify(st, 2000), 'write')
+  dictate.poke(st, 50000) // habla: ventana se extiende
+  assert.equal(dictate.classify(st, 50000 + dictate.IDLE_MS - 1000), 'write')
+  assert.equal(dictate.classify(st, 50000 + dictate.IDLE_MS + 1000), null)
+  // Tope duro aunque hable sin parar (cada poke extiende lo ocioso, no lo duro).
+  const st2 = dictate.create()
+  dictate.start(st2, 0)
+  dictate.poke(st2, dictate.HARD_MS - 2000)
+  assert.equal(dictate.classify(st2, dictate.HARD_MS - 1000), 'write')
+  dictate.poke(st2, dictate.HARD_MS - 500)
+  assert.equal(dictate.classify(st2, dictate.HARD_MS + 1000), 'hard-out')
+  dictate.stop(st2)
+  assert.equal(dictate.classify(st2, dictate.HARD_MS + 2000), null)
+})
+
+test('ollama: solo etiquetas válidas', () => {
+  const llm = require('../src/main/llm')
+  assert.ok(llm.validOllamaTag('qwen2.5:1.5b'))
+  assert.ok(llm.validOllamaTag('llama3.1'))
+  assert.ok(llm.validOllamaTag('hf.co/unsloth/model'))
+  assert.ok(!llm.validOllamaTag('x; calc'))
+  assert.ok(!llm.validOllamaTag('a & b'))
+  assert.ok(!llm.validOllamaTag('$(quien)'))
+  assert.ok(!llm.validOllamaTag('a`b`'))
+  assert.ok(!llm.validOllamaTag('a|b'))
+  assert.ok(!llm.validOllamaTag(''))
+})
+
+console.log('\nFIX: claves de memoria sin colisión')
+
+test('vox_confirm (voz) y approvals usan claves distintas', () => {
+  const fs = require('fs')
+  const approvalsSrc = fs.readFileSync(require('path').join(__dirname, '..', 'src', 'main', 'approvals.js'), 'utf8')
+  const mainSrc = fs.readFileSync(require('path').join(__dirname, '..', 'main.js'), 'utf8')
+  const kAp = /const K = '([^']+)'/.exec(approvalsSrc)[1]
+  assert.ok(/vox_confirm/.test(mainSrc), 'voz usa vox_confirm')
+  assert.ok(!/vox_pending/.test(mainSrc), 'main no toca la clave de approvals')
+  assert.notEqual(kAp, 'vox_confirm')
+})
+
+test('confirmación de voz sobrevive a una aprobación remota', () => {
+  const memory = require('../src/main/memory')
+  const approvals = require('../src/main/approvals')
+  const fs = require('fs')
+  const dir = fs.mkdtempSync(require('path').join(require('os').tmpdir(), 'vox-keys-'))
+  memory.setUserDataPath(dir)
+  memory.set('vox_confirm', { canon: 'apaga el equipo', at: Date.now() })
+  approvals.queue('Reiniciar', 'detalle', 'reinicia el equipo')
+  assert.deepEqual(memory.get('vox_confirm'), { canon: 'apaga el equipo', at: memory.get('vox_confirm').at })
+  assert.equal(approvals.list().length, 1)
+  approvals.clear()
+  assert.deepEqual(memory.get('vox_confirm').canon, 'apaga el equipo')
+})
+
+console.log('\nFIX: sin inyección PowerShell')
+
+// Batería permanente: cada sitio con interpolación recibe texto hostil.
+// La forma escapada debe estar presente y cada resto sensible debe ir
+// precedido de backtick (sin él, $" ejecuta). Si un patrón futuro interpola
+// crudo, cae aquí.
+function assertOnlyEscaped(out, escapedForm, rawCore, label) {
+  assert.ok(out.includes(escapedForm), `${label}: forma escapada presente`)
+  let i = -1
+  while ((i = out.indexOf(rawCore, i + 1)) !== -1) {
+    assert.equal(out[i - 1], '`', `${label}: resto sin escapar en ${i} (${out.slice(Math.max(0, i - 20), i + 30)})`)
+  }
+}
+
+test('sanitize desarma comillas, backticks, $ y pipes', () => {
+  const fs = require('fs')
+  for (const f of ['src/main/commands/system.js', 'src/main/commands/launch.js']) {
+    const src = fs.readFileSync(require('path').join(__dirname, '..', f), 'utf8')
+    const m = /function sanitize\(str\) \{ return ([^\n]+) \}/.exec(src)
+    assert.ok(m, f + ' tiene sanitize')
+    for (const ch of ['"', '`', '$']) assert.ok(m[1].includes(ch), `${f} filtra ${ch}`)
+  }
+})
+
+test('rutas/archivos: hostil queda entre comillas simples', () => {
+  const smart = require('../src/main/smart-exec')
+  const evil = 'a"$(calc)b'
+  const byMatch = (frag) => smart.PATTERNS.find(p => typeof p.run === 'function' && String(p.match).includes(frag))
+  const out1 = String(byMatch('directorio').run(['x', undefined, undefined, undefined, evil, undefined, evil]))
+  assert.ok(out1.includes(`'${evil}'`), 'lista: ' + out1.slice(0, 100))
+  const out2 = String(byMatch('renombra').run(['x', evil, 'y']))
+  assert.ok(out2.includes(`'${evil}'`), 'renombra')
+  const out3 = String(byMatch('unzip').run(['x', evil, undefined]))
+  assert.ok(out3.includes(`'${evil}'`), 'extrae')
+  // (Sin assertPsSafe aquí: entre comillas simples el " es literal y seguro.)
+})
+
+test('doble comilla: hostil neutralizado con backtick', () => {
+  const smart = require('../src/main/smart-exec')
+  const byMatch = (frag) => smart.PATTERNS.find(p => typeof p.run === 'function' && String(p.match).includes(frag))
+  const evil = 'a"$(calc)b'
+  const out1 = String(byMatch('descarga').run(['x', 'https://h.com/' + evil, undefined]))
+  assertOnlyEscaped(out1, smart.escapePs('https://h.com/' + evil), '$(calc)', 'descarga')
+  const out2 = String(byMatch('acceso').run(['x', undefined, evil, 'y']))
+  assertOnlyEscaped(out2, smart.escapePs(evil), '$(calc)', 'acceso directo')
+})
+
+test('SendKeys y portapapeles: comillas y teclas neutralizadas', () => {
+  const smart = require('../src/main/smart-exec')
+  const dicta = smart.PATTERNS.find(p => /dicta/.test(String(p.match)) && typeof p.run === 'function')
+  const out = String(dicta.run(['dicta 100% "ya"', '100% "ya"']))
+  assert.ok(!out.includes('\\"'), 'sin backslash-escape (no existe en PS)')
+  assert.ok(out.includes('{%}'), '% va entre llaves')
+  const clip = smart.PATTERNS.find(p => /portapapeles/.test(String(p.match)) && String(p.run).includes('Set-Clipboard'))
+  const out2 = String(clip.run(['copia x"$(calc) al portapapeles', 'x"$(calc)']))
+  assert.ok(out2.includes(`'x"$(calc)'`), 'clipboard entre comillas simples')
+})
+
+test('scheduled task: texto con comillas anidado intacto', () => {
+  const smart = require('../src/main/smart-exec')
+  const pat = smart.PATTERNS.find(p => /New-ScheduledTaskAction/.test(String(p.run)))
+  assert.ok(pat, 'existe patrón de recordatorio programado')
+  const hostile = `di "hola" y $(calc)`
+  const out = String(pat.run(['x', hostile, '5', 'minutos']))
+  // Entre comillas simples el $" es literal: basta que salga intacto y único.
+  const span = `''${hostile}''`
+  assert.ok(out.includes(span), 'span citado intacto')
+  assert.ok(!out.split(span).join('').includes('$(calc)'), 'sin resto fuera del citado')
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

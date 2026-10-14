@@ -47,6 +47,11 @@ $p = [System.Windows.Forms.Cursor]::Position
 [MouseAPI]::mouse_event([MouseAPI]::LEFTUP, $p.X, $p.Y, 0, 0)`
 
 const PATTERNS = [
+  // REGLA ANTI-INYECCIÓN (leer antes de tocar): texto del usuario a PowerShell
+  // SOLO vía psStr() (comilla simple), escapePs() (comilla doble) o escapeLike/
+  // escapeSendKeys (casos especiales). Prohibido interpolar m[] crudo y
+  // prohibido escapar comillas con backslash (en PS no existe).
+
   // --- WINDOW SNAPPING (Win+Arrow) ---
   { match: /(a\s+la\s+)?izquierda|divide\s+pantalla/i,
     run: () => winSnap(['0x25']),
@@ -128,7 +133,7 @@ const PATTERNS = [
     run: (m) => browserIncognito(m[1]),
     msg: (m) => `Abriendo ${m[1]} en modo incógnito` },
   { match: /(chrome|firefox|edge|brave)\s+(nueva\s+)?(ventana|pestana?|página)\s+(.+)/i,
-    run: (m) => `start ${m[1]} "${m[4]}"`,
+    run: (m) => `start ${m[1]} "${escapePs(m[4])}"`,
     msg: (m) => `Abriendo ${m[4]} en ${m[1]}` },
 
   // --- CHROME CDP (DevTools Protocol via HTTP) ---
@@ -190,20 +195,20 @@ const PATTERNS = [
     msg: (m) => `Archivo "${m[2]}" creado` },
   { match: /busca\s+archivos?\s+(?:por\s+)?(?:nombre|llamados?)\s+(.+)/i,
     ex: ['busca archivos llamados fotos'],
-    run: (m) => `Get-ChildItem -Recurse -Filter "*${m[1]}*" -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime | Format-Table -AutoSize | Out-String`,
+    run: (m) => `Get-ChildItem -Recurse -Filter '*${escapeLike(m[1])}*' -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime | Format-Table -AutoSize | Out-String`,
     capture: true,
     msg: (m) => `Buscando archivos "${m[1]}"` },
   { match: /list(a|e(a)?)\s+(el\s+)?(directorio|contenido|carpeta|archivos)\s+(.+)|muestra\s+(los\s+)?archivos\s+(.+)/i,
-    run: (m) => `Get-ChildItem "${m[4] || m[6]}" -ErrorAction SilentlyContinue | Select-Object Mode, Length, LastWriteTime, Name | Format-Table -AutoSize | Out-String`,
+    run: (m) => `Get-ChildItem ${psStr(m[4] || m[6])} -ErrorAction SilentlyContinue | Select-Object Mode, Length, LastWriteTime, Name | Format-Table -AutoSize | Out-String`,
     capture: true,
     msg: (m) => `Listando ${m[4] || m[6]}` },
   { match: /renombra\s+(.+?)\s+(?:a|como)\s+(.+)/i,
-    run: (m) => `Rename-Item -Path "${m[1].trim()}" -NewName "${m[2].trim()}" -ErrorAction SilentlyContinue`,
+    run: (m) => `Rename-Item -Path ${psStr(m[1].trim())} -NewName ${psStr(m[2].trim())} -ErrorAction SilentlyContinue`,
     msg: (m) => `Renombrado a ${m[2]}` },
   { match: /(atributo|cambia\s+atributo)\s+(.+?)\s+(?:a\s+)?(solo\s+lectura|oculto|read.?only|hidden|normal)/i,
     run: (m) => {
       const attr = /solo\s+lectura|read.?only/i.test(m[3]) ? 'ReadOnly' : /oculto|hidden/i.test(m[3]) ? 'Hidden' : 'Normal'
-      return `Set-ItemProperty -Path "${m[2].trim()}" -Name Attributes -Value ([System.IO.FileAttributes]::${attr}) -ErrorAction SilentlyContinue`
+      return `Set-ItemProperty -Path ${psStr(m[2].trim())} -Name Attributes -Value ([System.IO.FileAttributes]::${attr}) -ErrorAction SilentlyContinue`
     },
     msg: (m) => `Atributo cambiado a ${m[3]}` },
   { match: /monta\s+(la\s+)?imagen\s+(.+?)(?:\s+en\s+(.+))?/i,
@@ -219,7 +224,7 @@ const PATTERNS = [
     run: (m) => {
       const name = m[2].trim().replace(/\s+/g, '')
       const target = m[3]?.trim() || name
-      return `$ws = New-Object -ComObject WScript.Shell; $sc = $ws.CreateShortcut("$env:USERPROFILE\\Desktop\\${name}.lnk"); $sc.TargetPath = "${target}"; $sc.Save()`
+      return `$ws = New-Object -ComObject WScript.Shell; $sc = $ws.CreateShortcut("$env:USERPROFILE\\Desktop\\${escapePs(name)}.lnk"); $sc.TargetPath = "${escapePs(target)}"; $sc.Save()`
     },
     msg: (m) => `Acceso directo "${m[2]}" creado en el escritorio` },
 
@@ -324,8 +329,7 @@ const PATTERNS = [
   { match: /dicta\s+(.+)/i,
     run: (m) => {
       const text = m[1].trim()
-      const escaped = text.replace(/"/g, '\\"')
-      return `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("${escaped}")`
+      return `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${escapeSendKeys(text)}')`
     },
     msg: (m) => `Escribiendo: ${m[1].trim()}` },
 
@@ -351,12 +355,14 @@ const PATTERNS = [
   // --- REMINDER (via scheduled task) ---
   { match: /recu[eé]rdame\s+(.+?)\s+(?:en\s+|dentro\s+de\s+)(\d+)\s*(minutos?|segundos?|horas?|min|seg|h)/i,
     run: (m) => {
+      // Comilla simple afuera y adentro: '' pasa intacto en ambos niveles.
+      // (Antes: comilla doble afuera y el texto con " rompía el -Argument.)
       const text = m[1].trim().replace(/'/g, "''")
       const num = parseInt(m[2])
       const unit = m[3]?.toLowerCase() || 'minutos'
-      let seconds = unit.startsWith('h') ? num * 3600 : unit.startsWith('m') ? num * 60 : num
+      let seconds = unit.startsWith('h') ? num * 3600 : unit.includes('minuto') ? num * 60 : num
       const taskName = "AI_Reminder_" + Date.now()
-      return `$action = New-ScheduledTaskAction -Execute "powershell" -Argument "-NoProfile -Command \`"\`$host.UI.RawUI.WindowTitle = 'Recordatorio'; Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('${text}','Recordatorio AI','OK','Information'); [System.Media.SystemSounds]::Asterisk.Play()\`""; $trigger = New-ScheduledTaskTrigger -Once -At ((Get-Date).AddSeconds(${seconds})); Register-ScheduledTask -TaskName "${taskName}" -Action $action -Trigger $trigger -Force | Out-Null; Write-Output "Recordatorio programado para dentro de ${num} ${unit}"`
+      return `$action = New-ScheduledTaskAction -Execute "powershell" -Argument '-NoProfile -Command $host.UI.RawUI.WindowTitle = ''Recordatorio''; Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show(''${text}'',''Recordatorio AI'',''OK'',''Information''); [System.Media.SystemSounds]::Asterisk.Play()'; $trigger = New-ScheduledTaskTrigger -Once -At ((Get-Date).AddSeconds(${seconds})); Register-ScheduledTask -TaskName "${taskName}" -Action $action -Trigger $trigger -Force | Out-Null; Write-Output "Recordatorio programado para dentro de ${num} ${unit}"`
     },
     capture: true,
     msg: (m) => `Recordatorio en ${m[2]} ${m[3] || 'minutos'}: ${m[1]}` },
@@ -379,8 +385,8 @@ const PATTERNS = [
   // --- CLIPBOARD ---
   { match: /copia\s+(.+?)\s+(?:al?\s+)?portapapeles|clipboard\s+(.+)/i,
     run: (m) => {
-      const text = (m[1] || m[2]).trim().replace(/"/g, '\\"')
-      return `Set-Clipboard -Value "${text}"; Write-Output "Copiado al portapapeles"`
+      const text = (m[1] || m[2]).trim().replace(/'/g, "''")
+      return `Set-Clipboard -Value '${text}'; Write-Output "Copiado al portapapeles"`
     },
     msg: (m) => `Copiado: ${m[1] || m[2]}` },
   { match: /pega\s+(?:del\s+)?portapapeles|paste\s+clipboard/i,
@@ -404,7 +410,7 @@ const PATTERNS = [
 
   // --- DOWNLOAD ---
   { match: /descarga\s+(https?:\/\/\S+)(?:\s+(?:a|en|para|como)\s+(.+))?/i,
-    run: (m) => `Invoke-WebRequest -Uri "${m[1]}" -OutFile "${m[2] || path.basename(m[1]) || 'download'}" -UseBasicParsing`,
+    run: (m) => `Invoke-WebRequest -Uri "${escapePs(m[1])}" -OutFile "${escapePs(m[2] || path.basename(m[1]) || 'download')}" -UseBasicParsing`,
     msg: (m) => `Descargando ${path.basename(m[1])}` },
 
   // --- DISPLAY ---
@@ -471,7 +477,7 @@ const PATTERNS = [
     run: (m) => `Compress-Archive -Path ${psStr(m[1])} -DestinationPath ${psStr(m[2] || (m[1] + '.zip'))} -Force`,
     msg: (m) => `Comprimiendo ${m[1]}` },
   { match: /extrae|descomprime|unzip\s+(.+?)(?:\s+(?:a|en)\s+(.+))?/i,
-    run: (m) => `Expand-Archive -Path "${m[1]}" -DestinationPath "${m[2] || path.dirname(m[1])}" -Force`,
+    run: (m) => `Expand-Archive -Path ${psStr(m[1])} -DestinationPath ${psStr(m[2] || path.dirname(m[1]))} -Force`,
     msg: (m) => `Extrayendo ${m[1]}` },
 
   // --- FILE COPY / MOVE ---
@@ -789,9 +795,10 @@ public class MK {
       const rightApp = m[3] || ''
       const side = (m[2] || m[6] || '').toLowerCase().includes('izq') ? 'left' : 'right'
       const winKey = side === 'left' ? 'left' : 'right'
+      // m[5] es texto libre: escapado o rompería el Start-Process.
       const ps = rightApp
-        ? `Start-Process "${leftApp}"; Start-Sleep 1; Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("^{${winKey}}"); Start-Process "${rightApp}"; Start-Sleep 1; [System.Windows.Forms.SendKeys]::SendWait("^{${winKey}}")`
-        : `Start-Process "${leftApp}"; Start-Sleep 1; Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("^{${winKey}}")`
+        ? `Start-Process "${escapePs(leftApp)}"; Start-Sleep 1; Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("^{${winKey}}"); Start-Process "${escapePs(rightApp)}"; Start-Sleep 1; [System.Windows.Forms.SendKeys]::SendWait("^{${winKey}}")`
+        : `Start-Process "${escapePs(leftApp)}"; Start-Sleep 1; Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("^{${winKey}}")`
       const { exec } = require('child_process')
       exec(ps, { shell: 'powershell', timeout: 10000 })
       return { success: true, message: `Colocando ${leftApp} a la ${side === 'left' ? 'izquierda' : 'derecha'}${rightApp ? ' y ' + rightApp + ' a la ' + (side === 'left' ? 'derecha' : 'izquierda') : ''}` }
@@ -946,7 +953,7 @@ public class MK {
         process.env.USERPROFILE + '\\source',
         process.env.USERPROFILE + '\\source\\repos',
       ]
-      return `$dirs = @($(Get-ChildItem '${dirs.join("','")}' -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like '*${name}*' })); if ($dirs) { code $dirs[0].FullName } else { Write-Output 'No encontré el proyecto "${name}"' }`
+      return `$dirs = @($(Get-ChildItem '${dirs.join("','")}' -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like '*${escapeLike(name)}*' })); if ($dirs) { code $dirs[0].FullName } else { Write-Output 'No encontré el proyecto "${escapeLike(name)}"' }`
     },
     capture: true,
     msg: (m) => `Buscando proyecto "${m[3]}"...` },
@@ -1157,8 +1164,15 @@ public class MK {
     msg: (m) => `Ajustando volumen de ${m[2]}` },
 ]
 
-function escapePs(str) { return str.replace(/'/g, "''").replace(/\$/g, '`$').replace(/`/g, '``').replace(/"/g, '`"') }
+function escapePs(str) { return String(str || '').replace(/`/g, '``').replace(/\$/g, '`$').replace(/"/g, '`"').replace(/'/g, "''") }
 function psStr(str) { return "'" + str.replace(/'/g, "''") + "'" }
+// -Filter/-like: sin comillas de quiebre ni comodines del usuario.
+function escapeLike(str) { return String(str || '').replace(/'/g, "''").replace(/["`$*?\[\]]/g, '') }
+// SendKeys: cada tecla especial entre llaves (si no, +^%~(){}[] disparan hotkeys).
+// OJO PowerShell: la comilla doble se escapa con backtick, NUNCA con backslash.
+function escapeSendKeys(str) {
+  return String(str || '').replace(/'/g, "''").replace(/([+^%~(){}\[\]])/g, '{$1}')
+}
 
 function getWifiAdapter() { return 'Wi-Fi' }
 
@@ -1720,7 +1734,7 @@ function saveHistory(query, result) {
   } catch {}
 }
 
-module.exports = { execute, getHelp, setConfirm, route, pickBest, PATTERNS, getPatternExamples, getSemanticExamples }
+module.exports = { execute, getHelp, setConfirm, route, pickBest, PATTERNS, getPatternExamples, getSemanticExamples, escapePs, psStr, escapeLike, escapeSendKeys }
 
 // Fase 17: ejemplos declarados por patrón (fuente única para fuzzy + self-test).
 function getPatternExamples() {

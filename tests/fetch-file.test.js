@@ -156,6 +156,30 @@ async function run() {
     } finally { srv.close() }
   })
 
+  await test('abortar a mitad corta rápido (no 60s)', async () => {
+    const http = require('http')
+    const path = require('path')
+    const { fetchFile } = require('../src/main/fetch-file')
+    const srv = http.createServer((req, res) => {
+      res.writeHead(200, { 'Content-Length': 50000000 })
+      res.write(Buffer.alloc(100000, 1)) // un poco y se queda colgado
+    })
+    await new Promise(r => srv.listen(0, '127.0.0.1', r))
+    try {
+      const url = `http://127.0.0.1:${srv.address().port}/big.bin`
+      let stop = false
+      setTimeout(() => { stop = true }, 300)
+      const t0 = Date.now()
+      let err = ''
+      try {
+        await fetchFile(url, path.join(ROOT, 'abort.bin'), { shouldAbort: () => stop })
+      } catch (e) { err = e.message }
+      const dt = Date.now() - t0
+      assert.ok(/cancelado/.test(err), err)
+      assert.ok(dt < 15000, `tardó ${dt}ms`)
+    } finally { srv.close() }
+  })
+
   console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
   process.exit(failed ? 1 : 0)
 }
