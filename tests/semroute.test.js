@@ -85,6 +85,16 @@ async function run() {
     assert.equal(sem.status(d).available, true)
   })
 
+  await test('bestGroup elige patrón por máximo', async () => {
+    const vecs = [[1, 0], [0, 1], [0.7, 0.7]]
+    const groups = [{ canon: 'A', vecIdx: [0] }, { canon: 'B', vecIdx: [1, 2] }]
+    const r = sem.bestGroup([0.9, 0.1], vecs, groups)
+    assert.equal(r.canon, 'A')
+    assert.ok(r.sim > 0.99)
+    const r2 = sem.bestGroup([0, 1], vecs, groups)
+    assert.equal(r2.canon, 'B')
+  })
+
   await test('protocolo: ping + embed reales contra stub', async () => {
     const d = fs.mkdtempSync(path.join(ROOT, 'm-'))
     const p = await sem.ping(d, stubOver(d))

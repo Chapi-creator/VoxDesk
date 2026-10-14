@@ -25,6 +25,10 @@ class SettingsManager {
     this.elements.modelDlBtn = document.getElementById('btn-model-dl')
     this.elements.modelMeter = document.getElementById('settings-model-meter')
     this.elements.modelFill = document.getElementById('settings-model-fill')
+    this.elements.semStatus = document.getElementById('settings-sem-status')
+    this.elements.semDlBtn = document.getElementById('btn-sem-dl')
+    this.elements.semMeter = document.getElementById('settings-sem-meter')
+    this.elements.semFill = document.getElementById('settings-sem-fill')
     this.elements.username = document.getElementById('settings-username')
     this.elements.proactivity = document.getElementById('settings-proactivity')
     this.elements.voice = document.getElementById('settings-voice')
@@ -189,6 +193,37 @@ class SettingsManager {
         }
       }
     })
+    if (this.elements.semDlBtn) this.elements.semDlBtn.addEventListener('click', async () => {
+      this.elements.semDlBtn.disabled = true
+      this.elements.semMeter.style.display = ''
+      this.elements.semFill.style.width = '0%'
+      this.elements.semStatus.textContent = 'Descargando cerebro (~135 MB)… no cierres.'
+      await window.api.semanticDownload()
+    })
+    if (window.api.onSemanticProgress) window.api.onSemanticProgress((r) => {
+      if (r.busy) {
+        if (this.elements.semStatus) this.elements.semStatus.textContent = 'Ya hay una descarga en curso.'
+        return
+      }
+      if (this.elements.semFill) this.elements.semFill.style.width = (r.pct || 0) + '%'
+      if (r.phase === 'download' && this.elements.semStatus && r.totalMB) {
+        this.elements.semStatus.textContent = `Descargando ${r.file || ''}… ${r.MB}/${r.totalMB} MB (si se corta, reanuda).`
+      } else if (r.phase === 'retry' && this.elements.semStatus) {
+        this.elements.semStatus.textContent = `Corte de red, reintentando (${r.attempt}/3)…`
+      } else if (r.phase === 'verify' && this.elements.semStatus) {
+        this.elements.semStatus.textContent = 'Verificando…'
+      }
+      if (r.done) {
+        if (this.elements.semMeter) this.elements.semMeter.style.display = 'none'
+        if (this.elements.semDlBtn) this.elements.semDlBtn.disabled = false
+        if (r.ok) {
+          this._refreshSemStatus()
+        } else if (this.elements.semStatus) {
+          this.elements.semStatus.textContent = 'No se pudo: ' + (r.error || 'error desconocido')
+          if (this.elements.semDlBtn) { this.elements.semDlBtn.style.display = ''; this.elements.semDlBtn.textContent = 'Reintentar' }
+        }
+      }
+    })
     if (this.elements.voiceAddBtn) this.elements.voiceAddBtn.addEventListener('click', async () => {
       const url = (this.elements.voiceUrl.value || '').trim()
       if (!url) { this.elements.voiceStatus.textContent = 'Pega primero el link .onnx.'; return }
@@ -255,6 +290,7 @@ class SettingsManager {
     this._toggleUrlField()
     this._refreshOllama()
     this._refreshModelStatus()
+    this._refreshSemStatus()
     await this._refreshCustomVoices()
     const p = this.elements.provider.value
     if (p === 'local' || this.elements.apiKey.value.trim()) await this._fetchModels()
@@ -314,6 +350,23 @@ class SettingsManager {
       }
     } catch {
       this.elements.modelStatus.textContent = ''
+    }
+  }
+
+  async _refreshSemStatus() {
+    if (!this.elements.semStatus) return
+    try {
+      const st = await window.api.semanticStatus()
+      if (st.available) {
+        this.elements.semStatus.textContent = '✓ Cerebro activo: entiende ideas, no solo palabras.'
+        if (this.elements.semDlBtn) this.elements.semDlBtn.style.display = 'none'
+        if (this.elements.semMeter) this.elements.semMeter.style.display = 'none'
+      } else {
+        this.elements.semStatus.textContent = 'Cerebro no descargado (~135 MB, una vez). Sin él, Vox usa reglas.'
+        if (this.elements.semDlBtn) { this.elements.semDlBtn.style.display = ''; this.elements.semDlBtn.textContent = 'Activar cerebro (~135 MB)' }
+      }
+    } catch {
+      this.elements.semStatus.textContent = ''
     }
   }
 

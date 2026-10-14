@@ -7,9 +7,10 @@ const crypto = require('crypto')
 
 const MODEL_ID = 'Xenova/paraphrase-multilingual-MiniLM-L12-v2:onnx/model_quantized.onnx'
 const DIM = 384
-// Umbrales iniciales; C3 los valida con el banco de 100 frases.
-let SEM_HI = 0.70
-let SEM_MID = 0.50
+// Umbrales medidos con el banco (scripts/sem-bank.js + tests/semantic-bank.json).
+// La red NUNCA ejecuta sola: solo promociona consenso o pregunta.
+const SEM_AGREE = 0.60 // fuzzy MID + misma canon + red → ejecuta sin preguntar
+const SEM_ASK = 0.60   // red sola con confianza → pregunta (nunca ejecuta)
 
 function isPackaged() {
   try { return require('electron').app.isPackaged } catch { return false }
@@ -142,11 +143,17 @@ async function ping(modelsDir, over = {}) {
 async function embed(modelsDir, texts, over = {}) {
   const st = status(modelsDir)
   if (!st.available && !over.bin && !over.args) throw new Error('sin modelo: ' + (st.missing || []).join(','))
-  const r = await _call(modelsDir, { op: 'embed', texts }, over.timeoutMs || 90000, over)
-  if (!Array.isArray(r.vecs) || (r.vecs.length && r.vecs[0].length !== DIM)) {
-    throw new Error('dim inesperada')
+  // El sidecar topa en 32 por llamada: trocear aquí (los candidatos son 86+).
+  const out = []
+  for (let i = 0; i < texts.length; i += 32) {
+    const r = await _call(modelsDir, { op: 'embed', texts: texts.slice(i, i + 32) }, over.timeoutMs || 90000, over)
+    if (!Array.isArray(r.vecs) || (r.vecs.length && r.vecs[0].length !== DIM)) {
+      throw new Error('dim inesperada')
+    }
+    out.push(...r.vecs)
   }
-  return r.vecs
+  if (out.length !== texts.length) throw new Error(`vecs ${out.length}/${texts.length}`)
+  return out
 }
 
 function stop() {
@@ -171,7 +178,36 @@ function routeSemantic(q, vecs) {
   return best
 }
 
-// Vectores de candidatos con caché en disco (se recalculan si cambian).
+// groups: [{canon, vecIdx:[...]}] → mejor grupo por similitud máxima.
+// La red elige el PATRÓN; el texto original se ejecuta para conservar argumentos.
+function bestGroup(q, vecs, groups) {
+  let best = { group: -1, sim: -2, canon: null }
+  groups.forEach((g, gi) => {
+    let m = -2
+    for (const vi of g.vecIdx || []) {
+      if (!vecs[vi]) continue
+      const s = cosine(q, vecs[vi])
+      if (s > m) m = s
+    }
+    if (m > best.sim) best = { group: gi, sim: m, canon: g.canon }
+  })
+  return best
+}
+
+// Tablas candidatas con paridad fuzzy: INTENTS + ejemplos smart.
+// Devuelve {tables, flat, groups} para candidateVecs + bestGroup.
+function candidateTables() {
+  const understand = require('./understand')
+  const smart = require('./smart-exec')
+  const tables = understand.INTENTS.map(i => ({ canon: i.canon, ex: i.ex }))
+  for (const p of smart.getPatternExamples()) tables.push({ canon: p.canon, ex: p.ex })
+  const flat = []
+  const groups = tables.map((t) => {
+    const vecIdx = t.ex.map((ex) => { flat.push(ex); return flat.length - 1 })
+    return { canon: t.canon, vecIdx }
+  })
+  return { tables, flat, groups }
+}
 async function candidateVecs(modelsDir, texts, over = {}) {
   const f = modelFiles(modelsDir)
   const hash = crypto.createHash('sha1').update(MODEL_ID + '\n' + JSON.stringify(texts)).digest('hex').slice(0, 16)
@@ -186,9 +222,6 @@ async function candidateVecs(modelsDir, texts, over = {}) {
 }
 
 module.exports = {
-  MODEL_ID, DIM,
-  get SEM_HI() { return SEM_HI },
-  get SEM_MID() { return SEM_MID },
-  status, modelFiles, ping, embed, stop, cosine, routeSemantic, candidateVecs,
-  _test: { setThresholds: (hi, mid) => { SEM_HI = hi; SEM_MID = mid } },
+  MODEL_ID, DIM, SEM_AGREE, SEM_ASK,
+  status, modelFiles, ping, embed, stop, cosine, routeSemantic, bestGroup, candidateVecs, candidateTables,
 }

@@ -19,6 +19,7 @@ const life = require('./src/main/life')
 const memory = require('./src/main/memory')
 const logger = require('./src/main/logger')
 const followup = require('./src/main/followup')
+const semroute = require('./src/main/semroute')
 
 const MIME = {
   '.html': 'text/html', '.js': 'application/javascript',
@@ -207,6 +208,23 @@ async function confirmDestructive(title, detail) {
 smartExec.setConfirm(confirmDestructive)
 systemCmds.setConfirm(confirmDestructive)
 
+// C: consenso semántico. La red elige PATRÓN (canon); el texto original se
+// ejecuta para conservar argumentos. Umbrales medidos (semroute + banco).
+const SEM_TIMEOUT = 8000
+let _semTables = null
+async function semanticBest(t) {
+  const sem = require('./src/main/semroute')
+  if (sem.status(config.modelsDir()).available !== true) return null
+  if (!_semTables) {
+    const { flat, groups } = sem.candidateTables()
+    const vecs = await sem.candidateVecs(config.modelsDir(), flat, { timeoutMs: 60000 })
+    _semTables = { groups, vecs }
+  }
+  const [q] = await sem.embed(config.modelsDir(), [t], { timeoutMs: SEM_TIMEOUT })
+  const b = sem.bestGroup(q, _semTables.vecs, _semTables.groups)
+  return b.group < 0 ? null : b
+}
+
 async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!transcript) return { success: false, message: 'No te escuché' }
   if (_depth > 5) return { success: false, message: 'Demasiadas macros anidadas' }
 
@@ -349,6 +367,8 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
   // baja sigue al LLM. Fase 16B1: primero la caché aprendida.
   // Deuda menor: los ejemplos viven en los patrones (fuente única).
   const XTRA = smartExec.getPatternExamples().map(e => ({ id: 'pat', canon: e.canon, ex: e.ex }))
+  // C: consulta semántica (fondo). Sin modelo o con fallo → null y todo igual.
+  let semBest = null
   if (!_fromFuzzy) {
     const norm = understand.normalize(t)
     const cache = memory.getCache()
@@ -361,7 +381,12 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
       return await _handleOne(cache[bestKey].action, _depth + 1, true)
     }
     const fz = understand.route(t, XTRA)
+    try { semBest = await semanticBest(t) } catch { semBest = null }
     if (fz && fz.conf >= understand.HI) {
+      return await _handleOne(fz.canon + (fz.args ? ' ' + fz.args : ''), _depth + 1, true)
+    }
+    if (fz && fz.conf >= understand.MID && semBest && semBest.canon === fz.canon && semBest.sim >= semroute.SEM_AGREE) {
+      // Consenso: dos señales independientes coinciden → ejecuta sin preguntar.
       return await _handleOne(fz.canon + (fz.args ? ' ' + fz.args : ''), _depth + 1, true)
     }
     if (fz && fz.conf >= understand.MID) {
@@ -376,8 +401,16 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
     const answer = await llm.ask(t)
     if (answer) return await _processLlmAnswer(answer)
   }
-  // B1: no-sé honesto con las 2 opciones más cercanas (bajo MID, sobre 0.35).
+  // B1+C: no-sé honesto. Fuzzy sugiere (≥0.35); la red aporta otra opción
+  // (≥SEM_ASK) y, si no hay nada, pregunta ejecutable con "sí" (nunca ejecuta sola).
   const _sug = understand.routeTop(t, XTRA, 3).filter(s => s.conf >= 0.35 && s.conf < understand.MID).slice(0, 2).map(s => `"${s.canon}"`)
+  if (semBest && semBest.sim >= semroute.SEM_ASK && !_sug.some(s => s.includes(semBest.canon))) {
+    if (_sug.length === 0) {
+      try { memory.set('vox_pending', { canon: semBest.canon, at: Date.now() }) } catch {}
+      return { success: true, message: `¿Quisiste decir "${semBest.canon}"? Di sí y lo hago.`, speak: true }
+    }
+    if (_sug.length < 2) _sug.push(`"${semBest.canon}"`)
+  }
   return { success: false, message: `No entendí: "${t}".` + (_sug.length ? ` ¿Quizás: ${_sug.join(' o ')}?` : ' Prueba con algo simple como "qué hora es", o abre la guía ❓ para ver todo lo que sé hacer.'), speak: true }
 }
 
@@ -614,6 +647,35 @@ ipcMain.handle('models:download-large', async () => {
     })
   } finally {
     largeDlBusy = false
+  }
+})
+
+// C2: cerebro semántico — estado y descarga (~135 MB, reanuda y verifica).
+ipcMain.handle('semantic:status', () => {
+  try {
+    const sem = require('./src/main/semroute')
+    const st = sem.status(config.modelsDir())
+    return { available: st.available, missing: st.missing || [] }
+  } catch {
+    return { available: false, missing: [] }
+  }
+})
+
+let semDlBusy = false
+ipcMain.handle('semantic:download', async () => {
+  if (semDlBusy) {
+    if (mainWindow) mainWindow.webContents.send('semantic:progress', { busy: true })
+    return false
+  }
+  semDlBusy = true
+  try {
+    const { downloadSemantic } = require('./src/main/semantic-download')
+    return await downloadSemantic({
+      modelsDir: config.modelsDir(),
+      send: (data) => { if (mainWindow) mainWindow.webContents.send('semantic:progress', data) },
+    })
+  } finally {
+    semDlBusy = false
   }
 })
 
@@ -986,6 +1048,18 @@ app.whenReady().then(async () => {
   setTimeout(() => lifeTick(), 30000)
   setInterval(() => lifeTick(), 60000)
   mark('ready')
+  // C: precalienta el cerebro semántico en fondo (si descargado): la primera
+  // orden no paga el arranque del sidecar (~10 s). Nunca bloquea ni rompe.
+  setTimeout(() => {
+    try {
+      const sem = require('./src/main/semroute')
+      if (sem.status(config.modelsDir()).available) {
+        sem.candidateVecs(config.modelsDir(), sem.candidateTables().flat)
+          .then(() => sem.embed(config.modelsDir(), ['hola']))
+          .catch(() => {})
+      }
+    } catch {}
+  }, 8000)
 
   const iconPath = path.join(__dirname, 'assets', 'icon.png')
   const icon = fs.existsSync(iconPath)

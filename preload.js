@@ -61,6 +61,11 @@ contextBridge.exposeInMainWorld('api', {
   onModelsProgress: (callback) => {
     ipcRenderer.on('models:progress', (_event, data) => callback(data))
   },
+  semanticStatus: () => ipcRenderer.invoke('semantic:status'),
+  semanticDownload: () => ipcRenderer.invoke('semantic:download'),
+  onSemanticProgress: (callback) => {
+    ipcRenderer.on('semantic:progress', (_event, data) => callback(data))
+  },
   listMicDevices: () => ipcRenderer.invoke('audio:devices'),
   getPreference: (key) => ipcRenderer.invoke('memory:get', key),
   setPreference: (key, value) => ipcRenderer.invoke('memory:set', key, value),
