@@ -981,18 +981,14 @@ async function lifeTick() {
       idleMin: (now - _lastCmdAt) / 60000,
       recentCmds: mood.recentCount(),
       battery: _lastBattery,
-      lastMorning: memory.get('vox_last_morning'),
-      lastNight: memory.get('vox_last_night'),
-      lastBatteryWarn: memory.get('vox_last_battery'),
-      lastMissed: memory.get('vox_last_missed'),
-      lastBreak: memory.get('vox_last_break'),
+      ...life.readStamps((k) => memory.get(k)),
       lastSleepState: _lastSleepState,
       streak: memory.get('vox_streak'),
     }
     const a = life.evaluate(ctx)
     mood.touchSeen()
     if (!a) return
-    if (a.stamp) for (const [k, v] of Object.entries(a.stamp)) memory.set('vox_' + k, v)
+    life.applyStamps((k, v) => memory.set(k, v), a.stamp)
     if (a.streakDone) mood.markStreakDone()
     // Fase 14b: briefing matutino con datos reales (1 vez al día, best-effort).
     if (a.id === 'morning') {

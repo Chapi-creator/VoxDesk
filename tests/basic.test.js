@@ -1369,6 +1369,48 @@ test('resolveModel: grande solo si verifica', () => {
   fs.rmSync(full, { recursive: true, force: true })
 })
 
+console.log('\nFIX: avisos no repiten (marcas consistentes)')
+
+test('STAMPS: 5 claves con la caja exacta', () => {
+  const life = require('../src/main/life')
+  assert.deepEqual(Object.keys(life.STAMPS).sort(), ['lastBatteryWarn', 'lastBreak', 'lastMissed', 'lastMorning', 'lastNight'])
+  for (const v of Object.values(life.STAMPS)) assert.ok(/^vox_last[A-Z]/.test(v), v)
+})
+
+test('roundtrip guardar→leer por la misma clave', () => {
+  const life = require('../src/main/life')
+  const store = {}
+  life.applyStamps((k, v) => { store[k] = v }, { lastNight: '2026-10-14', lastBreak: 123 })
+  assert.equal(store.vox_lastNight, '2026-10-14')
+  const back = life.readStamps((k) => store[k])
+  assert.equal(back.lastNight, '2026-10-14')
+  assert.equal(back.lastBreak, 123)
+})
+
+test('segundo tick no repite buenas noches', () => {
+  const life = require('../src/main/life')
+  const store = {}
+  const base = { name: '', mood: 60, daysAway: 0, idleMin: 0, recentCmds: 0, battery: 100, lastSleepState: '', streak: null }
+  const t1 = new Date(2026, 9, 14, 23, 30).getTime()
+  const a1 = life.evaluate({ ...base, now: t1, hour: 23, ...life.readStamps((k) => store[k]) })
+  assert.ok(a1 && a1.id === 'night', JSON.stringify(a1 && a1.id))
+  life.applyStamps((k, v) => { store[k] = v }, a1.stamp)
+  const a2 = life.evaluate({ ...base, now: t1 + 60000, hour: 23, ...life.readStamps((k) => store[k]) })
+  assert.equal(a2, null)
+})
+
+test('segundo tick no repite buenos días', () => {
+  const life = require('../src/main/life')
+  const store = {}
+  const base = { name: '', mood: 60, daysAway: 0, idleMin: 0, recentCmds: 0, battery: 100, lastSleepState: '', streak: null }
+  const t1 = new Date(2026, 9, 14, 8, 5).getTime()
+  const a1 = life.evaluate({ ...base, now: t1, hour: 8, ...life.readStamps((k) => store[k]) })
+  assert.ok(a1 && a1.id === 'morning')
+  life.applyStamps((k, v) => { store[k] = v }, a1.stamp)
+  const a2 = life.evaluate({ ...base, now: t1 + 60000, hour: 8, ...life.readStamps((k) => store[k]) })
+  assert.equal(a2, null)
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

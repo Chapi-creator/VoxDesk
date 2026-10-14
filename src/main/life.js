@@ -75,4 +75,29 @@ function startupBrief(ctx) {
   return parts.join(' ')
 }
 
-module.exports = { evaluate, startupBrief }
+// Marcas anti-repetición: UNA sola fuente (guardar y leer usan estas claves).
+// El bug clásico: escribir 'vox_lastNight' y leer 'vox_last_night' repetía avisos.
+const STAMPS = {
+  lastMorning: 'vox_lastMorning',
+  lastNight: 'vox_lastNight',
+  lastBatteryWarn: 'vox_lastBatteryWarn',
+  lastMissed: 'vox_lastMissed',
+  lastBreak: 'vox_lastBreak',
+}
+
+function readStamps(get) {
+  const o = {}
+  for (const [k, key] of Object.entries(STAMPS)) {
+    try { o[k] = get(key) } catch { o[k] = undefined }
+  }
+  return o
+}
+
+function applyStamps(set, stamp) {
+  if (!stamp) return
+  for (const [k, v] of Object.entries(stamp)) {
+    try { set(STAMPS[k] || ('vox_' + k), v) } catch {}
+  }
+}
+
+module.exports = { evaluate, startupBrief, STAMPS, readStamps, applyStamps }
