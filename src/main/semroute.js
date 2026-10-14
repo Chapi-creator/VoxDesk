@@ -210,7 +210,8 @@ function candidateTables() {
 }
 async function candidateVecs(modelsDir, texts, over = {}) {
   const f = modelFiles(modelsDir)
-  const hash = crypto.createHash('sha1').update(MODEL_ID + '\n' + JSON.stringify(texts)).digest('hex').slice(0, 16)
+  // pad128-v1 invalida cachés del pooling antiguo (padding variable → sesgo de lote).
+  const hash = crypto.createHash('sha1').update('pad128-v1\n' + MODEL_ID + '\n' + JSON.stringify(texts)).digest('hex').slice(0, 16)
   const cacheFile = path.join(f.dir, `vecs-${hash}.json`)
   try {
     const c = JSON.parse(fs.readFileSync(cacheFile, 'utf8'))

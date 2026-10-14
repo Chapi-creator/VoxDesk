@@ -56,4 +56,23 @@ function evaluate(ctx) {
   return null
 }
 
-module.exports = { evaluate }
+// Resumen al arrancar (puro): saludo + pendientes + una sugerencia útil.
+// ctx: {name, hour, routines, reminders, topCmd:{text,n}|null, daysAway}
+function startupBrief(ctx) {
+  const c = ctx || {}
+  const who = c.name ? ` ${c.name}` : ''
+  const h = c.hour ?? new Date().getHours()
+  const hellos = h >= 6 && h < 12 ? [`Buenos días${who}.`, `¡Buenas${who}!`] : h >= 12 && h < 20 ? [`Buenas tardes${who}.`, `¡Hola${who}!`] : [`Buenas noches${who}.`, `¡Hola${who}!`]
+  const parts = [hellos[Math.floor(Math.random() * hellos.length)]]
+  const pend = []
+  if (c.routines > 0) pend.push(`${c.routines} rutina${c.routines === 1 ? '' : 's'} hoy`)
+  if (c.reminders > 0) pend.push(`${c.reminders} recordatorio${c.reminders === 1 ? '' : 's'}`)
+  parts.push(pend.length ? `Tienes ${pend.join(' y ')}.` : 'Nada pendiente.')
+  if (c.daysAway >= 2) parts.push(`Llevabas ${c.daysAway} días fuera.`)
+  if (c.topCmd && c.topCmd.n >= 3) {
+    parts.push(`Veo que pides mucho "${c.topCmd.text}". Si quieres, enséñame un atajo con "cuando diga...".`)
+  }
+  return parts.join(' ')
+}
+
+module.exports = { evaluate, startupBrief }

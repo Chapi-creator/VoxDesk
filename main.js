@@ -319,8 +319,12 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
   const macroCmds = memory.loadMacro(t)
   if (macroCmds && macroCmds.length) {
     if (_depth > 5) return { success: false, message: 'Macro omitida — demasiado anidamiento' }
-    for (const cmd of macroCmds) await _handleOne(cmd, _depth + 1)
-    return { success: true, message: 'Macro ejecutada', speak: true }
+    const said = []
+    for (const cmd of macroCmds) {
+      const r = await _handleOne(cmd, _depth + 1)
+      if (r && r.message) said.push(r.message)
+    }
+    return { success: true, message: said.join('. ').slice(0, 500) || 'Macro ejecutada', speak: true }
   }
 
   if (/^recarga plugins$/i.test(t)) {
@@ -356,8 +360,14 @@ async function _handleOne(transcript, _depth = 0, _fromFuzzy = false) {  if (!tr
   if (smartResult) {
     if (smartResult._macro && Array.isArray(smartResult._macro)) {
       if (_depth > 5) return { success: false, message: 'Macro omitida — demasiado anidamiento' }
-      for (const cmd of smartResult._macro) await _handleOne(cmd, _depth + 1)
-      return { success: true, message: 'Macro ejecutada', speak: true }
+      const said = []
+      for (const cmd of smartResult._macro) {
+        const r = await _handleOne(cmd, _depth + 1)
+        if (r && r.message) said.push(r.message)
+      }
+      // B2: cuenta lo que pasó (sirve a macros y a comandos enseñados).
+      const msg = said.join('. ').slice(0, 500) || 'Macro ejecutada'
+      return { success: true, message: msg, speak: true }
     }
     return smartResult
   }
@@ -1060,6 +1070,29 @@ app.whenReady().then(async () => {
       }
     } catch {}
   }, 8000)
+  // B2: resumen al arrancar (una vez): saludo + pendientes + 1 sugerencia.
+  // Habla solo si proactividad total y horario decente (como lifeTick).
+  setTimeout(() => {
+    try {
+      if (!mainWindow) return
+      const cfg = config.load()
+      if (cfg.proactivity === 'off') return
+      try { if (memory.get('vox_quiet')) return } catch {}
+      const hour = new Date().getHours()
+      const allowVoice = cfg.proactivity === 'total' && !(hour >= 22 || hour < 8)
+      const routines = require('./src/main/routines')
+      const stats = mood.statsSummary()
+      const top = (stats.top && stats.top[0]) || null
+      const text = life.startupBrief({
+        name: mood.getName(), hour,
+        routines: routines.all().length,
+        reminders: memory.listReminders().length,
+        topCmd: top ? { text: top[0], n: top[1] } : null,
+        daysAway: mood.daysSinceSeen(),
+      })
+      mainWindow.webContents.send('vox:life', { state: 'happy', text, speak: allowVoice })
+    } catch {}
+  }, 25000)
 
   const iconPath = path.join(__dirname, 'assets', 'icon.png')
   const icon = fs.existsSync(iconPath)

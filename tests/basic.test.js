@@ -1216,6 +1216,73 @@ await atest('calculadora entiende español', async () => {
   assert.ok((await run('calcula 50 menos 8')).includes('42'))
 })
 
+console.log('\nB2: enseñar por voz + resumen')
+
+test('addCommand reemplaza, no duplica', () => {
+  const memory = require('../src/main/memory')
+  const fs = require('fs')
+  const dir = fs.mkdtempSync(require('path').join(require('os').tmpdir(), 'vox-b2-'))
+  memory.setUserDataPath(dir)
+  memory.addCommand('trabajo', 'abre chrome')
+  memory.addCommand('trabajo', 'abre firefox')
+  const d = memory.load()
+  assert.equal(d.custom_commands.filter(c => c.trigger === 'trabajo').length, 1)
+  assert.equal(d.custom_commands.find(c => c.trigger === 'trabajo').action, 'abre firefox')
+  assert.ok(memory.removeCommand('trabajo'))
+})
+
+await atest('lo enseñado se ejecuta (macro con la acción)', async () => {
+  const memory = require('../src/main/memory')
+  const smart = require('../src/main/smart-exec')
+  const fs = require('fs')
+  const dir = fs.mkdtempSync(require('path').join(require('os').tmpdir(), 'vox-b2b-'))
+  memory.setUserDataPath(dir)
+  memory.addCommand('trabajo', 'abre chrome', 'A trabajar')
+  const r = await smart.execute('di trabajo')
+  assert.ok(r && r.success, JSON.stringify(r && r.message))
+  assert.deepEqual(r._macro, ['abre chrome'])
+  assert.ok(r.message.includes('A trabajar'))
+})
+
+await atest('auto-referencia no ejecuta en bucle (anuncia)', async () => {
+  const memory = require('../src/main/memory')
+  const smart = require('../src/main/smart-exec')
+  const fs = require('fs')
+  const dir = fs.mkdtempSync(require('path').join(require('os').tmpdir(), 'vox-b2c-'))
+  memory.setUserDataPath(dir)
+  memory.addCommand('eco', 'eco')
+  const r = await smart.execute('eco')
+  assert.ok(r && r.success)
+  assert.equal(r._macro, undefined)
+})
+
+test('cuando diga X haz Y guarda el comando', () => {
+  const memory = require('../src/main/memory')
+  const smart = require('../src/main/smart-exec')
+  const fs = require('fs')
+  const dir = fs.mkdtempSync(require('path').join(require('os').tmpdir(), 'vox-b2d-'))
+  memory.setUserDataPath(dir)
+  const pat = smart.PATTERNS.find(p => String(p.match).includes('cuando'))
+  assert.ok(pat, 'existe patrón cuando-diga')
+  const msg = pat.handler(['cuando diga peli abre netflix', 'peli', 'abre', 'abre netflix'])
+  assert.ok(/Aprendido/.test(msg))
+  const got = memory.matchCustom('peli')
+  assert.ok(got && got.action === 'abre netflix')
+})
+
+test('startupBrief: saludo + pendientes + sugerencia', () => {
+  const life = require('../src/main/life')
+  const b1 = life.startupBrief({ name: 'Bre', hour: 9, routines: 2, reminders: 1, topCmd: null, daysAway: 0 })
+  assert.ok(/Buenos d[ií]as Bre|¡Buenas Bre!/.test(b1), b1)
+  assert.ok(/2 rutinas hoy y 1 recordatorio/.test(b1), b1)
+  const b2 = life.startupBrief({ name: '', hour: 15, routines: 0, reminders: 0, topCmd: null, daysAway: 0 })
+  assert.ok(/Buenas tardes|¡Hola!/.test(b2) && /Nada pendiente/.test(b2), b2)
+  const b3 = life.startupBrief({ name: '', hour: 9, routines: 0, reminders: 0, topCmd: { text: 'qué hora es', n: 5 }, daysAway: 3 })
+  assert.ok(/3 días fuera/.test(b3) && /cuando diga/.test(b3), b3)
+  const b4 = life.startupBrief({ name: '', hour: 9, routines: 0, reminders: 0, topCmd: { text: 'x', n: 2 }, daysAway: 0 })
+  assert.ok(!/cuando diga/.test(b4))
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

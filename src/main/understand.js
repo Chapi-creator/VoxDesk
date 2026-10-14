@@ -22,6 +22,7 @@ const INTENTS = [
   { id: 'hora', ex: ['que hora es', 'dime la hora', 'hora actual', 'que horas son'], canon: 'qué hora es' },
   { id: 'fecha', ex: ['que fecha es', 'que dia es hoy', 'dime la fecha', 'fecha de hoy'], canon: 'qué fecha es' },
   { id: 'clima', ex: ['clima', 'como esta el clima', 'va a llover', 'temperatura'], canon: 'clima' },
+  { id: 'traduce', ex: ['como se dice', 'como se traduce', 'traduce esto'], canon: 'traduce' },
   { id: 'alarma', ex: ['alarma en', 'temporizador de', 'avisame en', 'recuerdame en', 'pon alarma'], canon: 'alarma en' },
   { id: 'captura', ex: ['captura la pantalla', 'toma captura', 'pantallazo', 'captura pantalla'], canon: 'captura la pantalla' },
   { id: 'ayuda', ex: ['ayuda', 'que sabes hacer', 'que puedes hacer', 'comandos', 'help'], canon: 'ayuda' },

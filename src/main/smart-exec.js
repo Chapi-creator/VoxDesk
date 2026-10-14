@@ -636,12 +636,20 @@ const PATTERNS = [
     msg: (m) => `Olvidando ${m[1]}` },
   { match: /aprende\s+(.+?)\s+para\s+(.+)/i,
     handler: (m) => { memory.addCommand(m[1], m[2]); return `Aprendido: "${m[1]}" -> ${m[2]}` },
+    ex: ['aprende buenas noches para modo silencio', 'aprende trabajo para abre chrome'],
+    msg: (m) => `Aprendiendo ${m[1]}` },
+  { match: /cuando\s+diga\s+(.+?)\s+(haz|abre|abrir|pon|poner|ejecuta|corre)\s+(.+)/i,
+    handler: (m) => { memory.addCommand(m[1], m[3]); return `Aprendido: cuando digas "${m[1]}" haré: ${m[3]}` },
+    ex: ['cuando diga trabajo abre chrome', 'cuando diga silencio ejecuta modo silencio'],
     msg: (m) => `Aprendiendo ${m[1]}` },
   { match: /olvida\s+comando\s+(.+)/i,
     handler: (m) => { const ok = memory.removeCommand(m[1]); return ok ? `Comando "${m[1]}" olvidado` : `No encontré "${m[1]}"` },
+    priority: 10,
+    ex: ['olvida comando trabajo'],
     msg: (m) => `Olvidando comando ${m[1]}` },
   { match: /muestra\s+comandos\s+(aprendidos|personalizados)/i,
     handler: () => { const d = require('./memory').load(); return d.custom_commands.length ? d.custom_commands.map((c,i) => `${i+1}. "${c.trigger}" -> ${c.reply || c.action}`).join('\n') : 'No hay comandos aprendidos' },
+    ex: ['muestra comandos aprendidos'],
     msg: 'Mostrando comandos' },
 
   // --- OCR ---
@@ -1421,6 +1429,11 @@ async function matchOne(text) {  // Check custom commands first (user-taught pat
   const custom = memory.matchCustom(text)
   if (custom) {
     const msg = `${custom.reply || 'Ejecutando'}: ${custom.action}`
+    // B2: lo enseñado SE EJECUTA (no solo se anuncia). _handleOne corre cada
+    // paso con su límite de profundidad: auto-referencias mueren en depth>5.
+    if (custom.action && custom.action.toLowerCase().trim() !== String(text).toLowerCase().trim()) {
+      return { success: true, message: msg, speak: true, _macro: [custom.action] }
+    }
     return { success: true, message: msg, speak: true }
   }
 

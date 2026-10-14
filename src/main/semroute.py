@@ -51,13 +51,11 @@ def main():
         if not texts:
             return []
         encs = tok.encode_batch(texts)
-        blen = 0
         seqs = []
         for e in encs:
-            ids = e.ids[:args.max_tokens]
-            seqs.append(ids)
-            blen = max(blen, len(ids))
-        blen = max(blen, 1)
+            seqs.append(e.ids[:args.max_tokens])
+        # Padding FIJO a max_tokens: embeddings deterministas (lote-invariantes).
+        blen = args.max_tokens
         n = len(seqs)
         ids = np.zeros((n, blen), dtype=np.int64)
         mask = np.zeros((n, blen), dtype=np.int64)

@@ -22,6 +22,8 @@ async function main() {
   const bank = require('../tests/semantic-bank.json')
   const pats = smart.getPatternExamples()
   const byCanon = new Map(pats.map(p => [p.canon, p]))
+  for (const i of understand.INTENTS) byCanon.set(i.canon, { canon: i.canon, ex: i.ex })
+  for (const i of understand.INTENTS) byCanon.set(i.canon, { canon: i.canon, ex: i.ex })
   for (const p of bank.paraphrases) {
     if (!byCanon.has(p.canon)) throw new Error('canon del banco no existe: ' + p.canon)
   }

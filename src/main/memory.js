@@ -38,7 +38,10 @@ function list() {
 }
 function addCommand(trigger, action, reply) {
   const d = load()
-  d.custom_commands.push({ trigger: trigger.toLowerCase().trim(), action, reply: reply || 'Ejecutando ' + trigger })
+  const key = String(trigger || '').toLowerCase().trim()
+  // B2: re-enseñar reemplaza (no duplica).
+  d.custom_commands = (d.custom_commands || []).filter(c => c.trigger !== key)
+  d.custom_commands.push({ trigger: key, action, reply: reply || 'Ejecutando ' + trigger })
   save(d)
 }
 function removeCommand(trigger) {
@@ -150,4 +153,4 @@ function listReminders() {
   return d.reminders || []
 }
 
-module.exports = { setUserDataPath, get, set, del, list, addCommand, removeCommand, matchCustom, getCache, saveCachePair, bumpCache, removeCache, startRecording, stopRecording, isRecording, saveMacro, loadMacro, deleteMacro, listMacros, saveReminder, removeReminder, listReminders }
+module.exports = { setUserDataPath, load, get, set, del, list, addCommand, removeCommand, matchCustom, getCache, saveCachePair, bumpCache, removeCache, startRecording, stopRecording, isRecording, saveMacro, loadMacro, deleteMacro, listMacros, saveReminder, removeReminder, listReminders }
