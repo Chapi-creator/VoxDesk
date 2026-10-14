@@ -827,6 +827,7 @@ async function handleAndTrack(transcript, depth = 0) {
 
 wake.onWake = (command) => {
   _lastWakeAt = Date.now()
+  try { logger.info('wake: palabra detectada' + (command ? ' (' + String(command).slice(0, 60) + ')' : '')) } catch {}
   // Fase 16B3 barge-in: decir la palabra sobre Vox hablando lo interrumpe.
   if (_voxSpeaking) tts.stop()
   if (mainWindow) {
@@ -853,9 +854,9 @@ wake.onText = async (text) => {
   if (mainWindow) {
     const dictated = await maybeDictate(text)
     const result = dictated || await handleAndTrack(text)
-    // Corta-loop: "no entendí" tras "no entendí" tras... → follow-up en pausa.
-    const miss = !dictated && !result.success && /^No entendí/i.test(result.message || '')
-    _missStreak = followup.trackMiss(_missStreak, Date.now(), miss).streak
+    // Corta-loop: no-entendí Y preguntas sin ejecución suman racha; el follow-up
+    // se suspende a los 3 (antes las preguntas la reseteaban y el loop no moría).
+    _missStreak = followup.trackMiss(_missStreak, Date.now(), followup.isMissResult(result, !!dictated)).streak
     result._text = text
     mainWindow.webContents.send('wake:result', result)
   }

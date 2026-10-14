@@ -1703,6 +1703,17 @@ test('carpeta con .. no escapa de la base', () => {
 
 console.log('\nFIX: corta-loop de followup')
 
+test('isMissResult: preguntas también alimentan el loop', () => {
+  const followup = require('../src/main/followup')
+  assert.equal(followup.isMissResult({ success: false, message: 'No entendí: "x".' }), true)
+  assert.equal(followup.isMissResult({ success: true, message: '¿Quisiste decir "apaga"?' }), true)
+  assert.equal(followup.isMissResult({ success: false, message: 'No entendí.' }), true)
+  assert.equal(followup.isMissResult({ success: true, message: 'Apagando.' }), false)
+  assert.equal(followup.isMissResult({ success: false, message: 'Detenido', stop: true }), false)
+  assert.equal(followup.isMissResult({ success: false, message: 'No entendí.' }, true), false)
+  assert.equal(followup.isMissResult(null), false)
+})
+
 test('trackMiss: 3 fallos enfrían 5 min, un acierto resetea', () => {
   const followup = require('../src/main/followup')
   let s = { n: 0, until: 0 }

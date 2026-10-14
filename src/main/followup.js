@@ -65,4 +65,16 @@ function trackMiss(streak, now, miss) {
   return { streak: s, cooled: false }
 }
 
-module.exports = { isYes, isNo, checkPending, resolveFollowup, PENDING_TTL, trackMiss, MISS_COOLDOWN_MS }
+// ¿Esto alimenta el loop? No-entendí y preguntas sin ejecución SÍ;
+// solo una ejecución real (o dictado/parada) lo rompe. Puro → testeable.
+function isMissResult(result, dictated) {
+  if (dictated) return false
+  if (!result || typeof result !== 'object') return false
+  if (result.stop) return false
+  if (result.success) {
+    return /¿Quisiste decir|¿Quizás/i.test(result.message || '')
+  }
+  return true
+}
+
+module.exports = { isYes, isNo, checkPending, resolveFollowup, PENDING_TTL, trackMiss, MISS_COOLDOWN_MS, isMissResult }

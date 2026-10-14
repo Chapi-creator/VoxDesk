@@ -738,17 +738,14 @@ def main():
                 rec = make_rec(wake_grammar(WAKE_WORDS)) or vosk.KaldiRecognizer(_model, RATE)
                 continue
 
-            if fuzzy_wake(text, WAKE_WORDS):
-                # Parciales: SOLO palabra exacta (un trozo con 1 letra menos
-                # espera al final, que trae confianza). Rápido y sin fantasmas.
-                if not final and not exact_wake(text, WAKE_WORDS):
+            # SOLO finales despiertan: los parciales alucinan la palabra con
+            # micros saturados y no traen confianza. Cuesta ~0.5 s, mata chispazos.
+            if final and fuzzy_wake(text, WAKE_WORDS):
+                # Puerta de calidad: ruido con pinta de palabra no despierta.
+                _qc, _qd = result_quality(result)
+                if _qc < WAKE_MIN_CONF or _qd < WAKE_MIN_DUR:
+                    rec = make_rec(wake_grammar(WAKE_WORDS)) or vosk.KaldiRecognizer(_model, RATE)
                     continue
-                # Puerta de calidad en finales: ruido con pinta de palabra no despierta.
-                if final:
-                    _qc, _qd = result_quality(result)
-                    if _qc < WAKE_MIN_CONF or _qd < WAKE_MIN_DUR:
-                        rec = make_rec(wake_grammar(WAKE_WORDS)) or vosk.KaldiRecognizer(_model, RATE)
-                        continue
                 # Antitormenta: si el decodificador delira, no ametralla.
                 _wake_ok, _wake_hist, _wake_last = wake_allowed(_wake_hist, _wake_last, time.time())
                 if not _wake_ok:
