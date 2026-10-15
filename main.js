@@ -160,12 +160,17 @@ ipcMain.handle('speech:finish', async () => {
 })
 
 // Toda voz centralizada aquí: avisa a la UI (el botón de corte la ve venga
-// de donde venga: comandos, timers, remoto, avisos).
+// de donde venga: comandos, timers, remoto, avisos). Muestra la ventana (sin
+// robar foco) para que el stop siempre sea visible.
 let _ttsSeq = 0
 async function sayAloud(text) {
   const id = ++_ttsSeq
   try {
-    if (mainWindow) mainWindow.webContents.send('tts:state', { speaking: true, id })
+    if (mainWindow) {
+      try { if (!mainWindow.isVisible()) mainWindow.showInactive() } catch {}
+      mainWindow.webContents.send('tts:state', { speaking: true, id })
+    }
+    try { if (tray) tray.setToolTip('VoxDesk: hablando…') } catch {}
     await tts.speak(text)
     return true
   } catch {
@@ -174,6 +179,7 @@ async function sayAloud(text) {
     try {
       if (mainWindow) mainWindow.webContents.send('tts:state', { speaking: false, id })
     } catch {}
+    try { updateTray() } catch {}
   }
 }
 
@@ -537,7 +543,7 @@ ipcMain.handle('tts:speak', async (_event, text) => {
   // Fase 7 anti-eco: mientras Vox habla, lo que entra por el micro se ignora.
   _voxSpeaking = true
   try {
-    await tts.speak(text)
+    await sayAloud(text)
   } finally {
     _voxSpeaking = false
   }
