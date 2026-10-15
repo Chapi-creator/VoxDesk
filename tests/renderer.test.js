@@ -171,6 +171,35 @@ test('UIManager: stop visible en todo ocupado, oculto en reposo', () => {
   assert.equal(stop(), false)
 })
 
+test('UIManager: generación ignora apagados rancios', () => {
+  const doc = fakeDocument()
+  const UIManager = loadClass('src/renderer/ui.js', 'UIManager', { document: doc, requestAnimationFrame: () => 0 })
+  const ui = new UIManager()
+  ui.init()
+  const stop = () => doc.getElementById('btn-stop').classList.contains('visible')
+  ui.setSpeaking()
+  const g = ui.gen
+  assert.equal(stop(), true)
+  ui.setIdle()
+  ui.setSpeaking()
+  assert.equal(stop(), true)
+  ui.setIdleIf(g) // timer viejo: no apaga lo nuevo
+  assert.equal(stop(), true)
+  ui.setIdleIf(ui.gen)
+  assert.equal(stop(), false)
+})
+
+test('UIManager: setWake no toca el stop', () => {
+  const doc = fakeDocument()
+  const UIManager = loadClass('src/renderer/ui.js', 'UIManager', { document: doc, requestAnimationFrame: () => 0 })
+  const ui = new UIManager()
+  ui.init()
+  ui.setSpeaking()
+  ui.setWake(false)
+  ui.setWake(true)
+  assert.equal(doc.getElementById('btn-stop').classList.contains('visible'), true)
+})
+
 test('UIManager: MIC SATURADO se muestra con clipped', () => {
   const doc = fakeDocument()
   const UIManager = loadClass('src/renderer/ui.js', 'UIManager', { document: doc, requestAnimationFrame: () => 0 })

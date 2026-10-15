@@ -52,10 +52,13 @@
       window.api.followupArm().catch(() => {})
       if (result.success && result.speak) {
         ui.setSpeaking()
+        const g = ui.gen
         await say(result.message)
         if (!_alive(myFlow)) return
+        ui.setIdleIf(g)
       } else {
-        _idleTimer = setTimeout(() => { _idleTimer = null; ui.setIdle() }, 3000)
+        const g = ui.gen
+        _idleTimer = setTimeout(() => { _idleTimer = null; ui.setIdleIf(g) }, 3000)
         if (_alive(myFlow)) _busy = false
         return
       }
@@ -65,7 +68,6 @@
       ui.setError('Error: ' + ((e && e.message) || 'reintenta o revisa el micrófono'))
     }
     if (_alive(myFlow)) _busy = false
-    ui.setIdle()
   }
 
   async function handleResult(result) {
@@ -80,15 +82,17 @@
     window.api.followupArm().catch(() => {})
     if (result.success && result.speak) {
       ui.setSpeaking()
+      const g = ui.gen
       await say(result.message)
       if (!_alive(myFlow)) return
+      ui.setIdleIf(g)
     } else {
-      _idleTimer = setTimeout(() => { _idleTimer = null; ui.setIdle() }, 3000)
+      const g = ui.gen
+      _idleTimer = setTimeout(() => { _idleTimer = null; ui.setIdleIf(g) }, 3000)
       if (_alive(myFlow)) _busy = false
       return
     }
     if (_alive(myFlow)) _busy = false
-    ui.setIdle()
   }
 
   ui.onToggle = () => {
@@ -142,18 +146,20 @@
 
   voice.onError = (error) => {
     ui.setError(error)
-    setTimeout(() => ui.setIdle(), 2000)
+    const g = ui.gen
+    setTimeout(() => ui.setIdleIf(g), 2000)
   }
 
   voice.onStateChange = (listening) => {
     if (listening && !settings.open) ui.setListening()
-    if (!listening && !ui.elements.window?.classList.contains('active')) ui.setIdle()
+    if (!listening && !_busy && !_ttsActive && !ui.elements.window?.classList.contains('active')) ui.setIdle()
   }
 
   window.api.onStatusUpdate((data) => {
     if (data === 'toggle-recording' && !settings.open) ui.onToggle()
     if (data === 'toggle-guide' && !settings.open) guide.toggle()
-    if (data === 'idle-now' && !settings.open) ui.setIdle()
+    // idle-now del motor: jamás apaga una respuesta en curso.
+    if (data === 'idle-now' && !settings.open && !_busy && !_ttsActive && !voice.isListening) ui.setIdle()
   })
 
   window.api.onAudioLevel((data) => {
@@ -190,8 +196,9 @@
       ui.showResponse(ev.text)
       if (ev.speak) {
         ui.setSpeaking()
+        const g = ui.gen
         await say(ev.text)
-        ui.setIdle()
+        ui.setIdleIf(g)
       }
     }
   })

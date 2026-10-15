@@ -9,6 +9,15 @@ class UIManager {
     this._animFrame = null
     this._smoothLevel = 0
     this._smoothPeak = 0
+    // Generación visual: cada cambio de estado la sube. Los apagados
+    // diferidos (timers, idle-now) solo aplican si nadie se movió después.
+    this._gen = 0
+  }
+
+  get gen() { return this._gen }
+
+  setIdleIf(gen) {
+    if (gen === this._gen) this.setIdle()
   }
 
   init() {
@@ -298,6 +307,7 @@ class UIManager {
   }
 
   _setStatus(text, className) {
+    this._gen++
     if (this.elements.status) {
       this.elements.status.textContent = text
       this.elements.status.className = `status ${className || ''}`
