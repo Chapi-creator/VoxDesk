@@ -126,7 +126,7 @@ ipcMain.handle('wake:toggle', () => setWakeMode(!wakeMode))
 let _speechBusy = false
 
 ipcMain.handle('speech:recognize', async (_event, opts) => {
-  if (_speechBusy) { tts.speak('Estoy ocupado, espera un momento').catch(() => {}); return { error: 'Ocupado' } }
+  if (_speechBusy) { sayAloud('Estoy ocupado, espera un momento').catch(() => {}); return { error: 'Ocupado' } }
   if (!wake.isRunning()) {
     const cfg = config.load()
     const ok = wake.start(cfg.wakeWord || 'asistente', wakeOpts())
@@ -149,6 +149,33 @@ ipcMain.handle('speech:cancel', async () => {
   tts.stop()
   return true
 })
+
+// Termina-y-razona: la captura en curso finaliza con lo grabado (ruido:
+// el fin de frase nunca llega). No descarta como cancel.
+ipcMain.handle('speech:finish', async () => {
+  try {
+    fs.writeFileSync(path.join(os.tmpdir(), 'voxdesk_finish_trigger'), String(Date.now()))
+    return true
+  } catch { return false }
+})
+
+// Toda voz centralizada aquí: avisa a la UI (el botón de corte la ve venga
+// de donde venga: comandos, timers, remoto, avisos).
+let _ttsSeq = 0
+async function sayAloud(text) {
+  const id = ++_ttsSeq
+  try {
+    if (mainWindow) mainWindow.webContents.send('tts:state', { speaking: true, id })
+    await tts.speak(text)
+    return true
+  } catch {
+    return false
+  } finally {
+    try {
+      if (mainWindow) mainWindow.webContents.send('tts:state', { speaking: false, id })
+    } catch {}
+  }
+}
 
 let _followUntil = 0
 let _missStreak = { n: 0, until: 0 }
@@ -959,7 +986,7 @@ async function syncRemoteServer() {
         speak: async (text) => {
           try {
             if (String(memory.get('vox_muted') || '') === '1') return false
-            await tts.speak(text)
+            await sayAloud(text)
             return true
           } catch { return false }
         },
@@ -1190,6 +1217,7 @@ app.whenReady().then(async () => {
     try { on = config.load().wakeEnabled !== false } catch {}
     setWakeMode(on, { save: false })
     require('./src/main/commands/timer').loadPending()
+    try { require('./src/main/commands/timer').setSpeaker((msg) => sayAloud(msg)) } catch {}
   }
   setImmediate(() => {
     try { plugins.loadAll() } catch {}

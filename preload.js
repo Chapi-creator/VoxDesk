@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('api', {
   executeCommand: (transcript) => ipcRenderer.invoke('command:execute', transcript),
   recognizeSpeech: (opts) => ipcRenderer.invoke('speech:recognize', opts || {}),
   cancelSpeech: () => ipcRenderer.invoke('speech:cancel'),
+  finishCapture: () => ipcRenderer.invoke('speech:finish'),
   followupArm: () => ipcRenderer.invoke('followup:arm'),
   speak: (text) => ipcRenderer.invoke('tts:speak', text),
   stopSpeaking: () => ipcRenderer.invoke('tts:stop'),
@@ -41,6 +42,9 @@ contextBridge.exposeInMainWorld('api', {
   },
   onAudioLevel: (callback) => {
     ipcRenderer.on('audio:level', (_event, data) => callback(data))
+  },
+  onTtsState: (callback) => {
+    ipcRenderer.on('tts:state', (_event, data) => callback(data))
   },
   onLifeEvent: (callback) => {
     ipcRenderer.on('vox:life', (_event, data) => callback(data))

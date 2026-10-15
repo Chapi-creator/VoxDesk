@@ -2,6 +2,14 @@ const tts = require('../tts')
 const { Notification } = require('electron')
 const memory = require('../memory')
 
+// Voz centralizada (main inyecta sayAloud para que la UI la vea).
+let _speakFn = null
+function setSpeaker(fn) { _speakFn = fn }
+function _say(msg) {
+  if (_speakFn) { try { _speakFn(msg) } catch {} return }
+  try { tts.speak(msg) } catch {}
+}
+
 function parseDuration(text) {
   const m = /(\d+)\s*(segundos?|minutos?|horas?)/i.exec(text)
   if (!m) return null
@@ -27,7 +35,7 @@ function parseRepeat(text) {
 
 function fireText(msg) {
   try { new Notification({ title: 'Recordatorio', body: msg }).show() } catch {}
-  try { tts.speak(msg) } catch {}
+  _say(msg)
 }
 
 // Programa por ID: si lo cancelaron antes de sonar, no suena.
@@ -150,7 +158,7 @@ function loadPending() {
   }
 }
 
-module.exports = { execute, loadPending, parseDuration, parseRepeat, fmtRepeat, listTimers }
+module.exports = { execute, loadPending, parseDuration, parseRepeat, fmtRepeat, listTimers, setSpeaker }
 
 function listTimers() {
   return memory.listReminders()

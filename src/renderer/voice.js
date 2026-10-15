@@ -54,8 +54,9 @@ class VoiceModule {
 
   pttUp() {
     if (!this._pttMode || !this.isListening) return false
+    // Soltar = terminar y razonar (antes descartaba lo hablado).
     this.stop()
-    window.api.cancelSpeech()
+    try { window.api.finishCapture() } catch {}
     return true
   }
 }

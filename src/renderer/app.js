@@ -17,11 +17,15 @@
   // Los resultados tardíos se descartan (cada stop invalida el flujo anterior).
   let _busy = false
   let _flowId = 0
+  let _ttsActive = false
+  let _ttsId = null
   const _alive = (myFlow) => myFlow === _flowId && _busy
 
   function stopAll() {
     _flowId++
     _busy = false
+    _ttsActive = false
+    _ttsId = null
     window.api.stopSpeaking()
     window.api.cancelSpeech()
     ui.showResponse('Detenido')
@@ -89,12 +93,32 @@
 
   ui.onToggle = () => {
     if (settings.open || guide.open) return
-    if (_busy) { stopAll(); return }
-    if (voice.isListening) voice.stop()
-    else voice.start()
+    // 3 modos: ocupado→detiene · capturando→termina y razona · reposo→escucha.
+    if (_busy || _ttsActive) { stopAll(); return }
+    if (voice.isListening) {
+      window.api.finishCapture().catch(() => {})
+      voice.stop()
+      ui.setProcessing()
+      return
+    }
+    voice.start()
   }
 
   ui.onStop = () => { stopAll() }
+
+  window.api.onTtsState((st) => {
+    if (!st) return
+    if (st.speaking) {
+      _ttsActive = true
+      _ttsId = st.id
+      ui.setSpeaking()
+      return
+    }
+    if (st.id !== undefined && _ttsId !== null && st.id !== _ttsId) return // fin rancio
+    _ttsActive = false
+    _ttsId = null
+    if (!_busy) ui.setIdle()
+  })
 
   ui.onFeedback = (transcript, good) => {
     window.api.cacheFeedback(transcript, good).catch(() => {})

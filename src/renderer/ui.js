@@ -157,6 +157,7 @@ class UIManager {
 
   setProcessing() {
     this._setStatus('PROCESANDO', 'processing')
+    if (this.elements.btnStop) this.elements.btnStop.classList.add('visible')
     if (this.elements.levelMeter) this.elements.levelMeter.classList.remove('visible')
     if (this.elements.window) {
       this.elements.window.classList.add('active')
@@ -167,6 +168,7 @@ class UIManager {
 
   setThinking() {
     this._setStatus('PENSANDO', 'thinking')
+    if (this.elements.btnStop) this.elements.btnStop.classList.add('visible')
     if (this.elements.window) this.elements.window.classList.add('thinking')
   }
 

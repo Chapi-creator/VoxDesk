@@ -148,6 +148,52 @@ test('UIManager: boton grabar llama onToggle', () => {
   assert.equal(n, 1)
 })
 
+test('UIManager: stop visible en todo ocupado, oculto en reposo', () => {
+  const doc = fakeDocument()
+  const UIManager = loadClass('src/renderer/ui.js', 'UIManager', { document: doc, requestAnimationFrame: () => 0 })
+  const ui = new UIManager()
+  ui.init()
+  const stop = () => doc.getElementById('btn-stop').classList.contains('visible')
+  assert.equal(stop(), false)
+  ui.setListening()
+  assert.equal(stop(), false)
+  ui.setProcessing()
+  assert.equal(stop(), true)
+  ui.setThinking()
+  assert.equal(stop(), true)
+  ui.setSpeaking()
+  assert.equal(stop(), true)
+  ui.setError('x')
+  assert.equal(stop(), false)
+  ui.setSpeaking()
+  assert.equal(stop(), true)
+  ui.setIdle()
+  assert.equal(stop(), false)
+})
+
+test('UIManager: MIC SATURADO se muestra con clipped', () => {
+  const doc = fakeDocument()
+  const UIManager = loadClass('src/renderer/ui.js', 'UIManager', { document: doc, requestAnimationFrame: () => 0 })
+  const ui = new UIManager()
+  ui.init()
+  ui.setAudioLevel(1, false, 'listening', true)
+  ui._drawLevels()
+  const label = doc.getElementById('vad-label')
+  assert.ok(label.textContent.includes('SATURADO'), label.textContent)
+  assert.ok(label.className.includes('clipped'))
+})
+
+test('VoiceModule: soltar PTT termina (no descarta)', () => {
+  const calls = []
+  const win = { api: { finishCapture: async () => { calls.push('finish'); return true }, cancelSpeech: async () => { calls.push('cancel'); return true } } }
+  const VoiceModule = loadClass('src/renderer/voice.js', 'VoiceModule', { window: win })
+  const v = new VoiceModule()
+  v._pttMode = true
+  v.isListening = true
+  assert.equal(v.pttUp(), true)
+  assert.deepEqual(calls, ['finish'])
+})
+
 test('GuideManager: ejemplos tocables ejecutan y cierran', async () => {
   const doc = fakeDocument()
   const GuideManager = loadClass('src/renderer/guide.js', 'GuideManager', {

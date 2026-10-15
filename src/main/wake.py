@@ -202,6 +202,24 @@ def wake_allowed(hist, last_at, now, min_gap=3.0, max_per_min=5):
     h = h + [now]
     return True, h, now
 
+# Señal "termina y razona": el usuario toca el botón en ruido y la captura
+# finaliza con lo grabado en vez de esperar silencio (que nunca llega).
+# El archivo trae epoch-ms; viejo (>5 s) o sin audio se ignora. Puro.
+def check_finish(trigger_path, have_frames, now=None):
+    now = now if now is not None else time.time()
+    try:
+        with open(trigger_path) as f:
+            ts = float((f.read() or '').strip() or 0)
+    except Exception:
+        return False
+    try:
+        os.remove(trigger_path)
+    except Exception:
+        pass
+    if not ts or (now * 1000 - ts) > 5000:
+        return False
+    return bool(have_frames)
+
 # D: gramática restringida para la escucha en espera. El decodificador SOLO
 # puede oír la palabra o [unk]: la detecta mejor y gasta menos CPU.
 # Los comandos tras despertar siguen con decodificador completo.
@@ -257,6 +275,7 @@ def capture_speech(stream, timeout=30, initial_frames=None, end_pause=None, vad=
     END = end_pause if end_pause else END_PAUSE
     MULT = PATIENCE_MULT.get(patience, 1.0)
     STOP = stop_trigger or os.path.join(os.environ.get('TEMP', ''), 'voxdesk_stop_trigger')
+    FINISH = os.path.join(os.environ.get('TEMP', ''), 'voxdesk_finish_trigger')
     floor = 0.02
     consec = [0]
     speech_sec = [0.0]
@@ -344,6 +363,9 @@ def capture_speech(stream, timeout=30, initial_frames=None, end_pause=None, vad=
         if os.path.exists(STOP):
             try: os.remove(STOP)
             except: pass
+            break
+        # Termina-y-razona: solo con audio real (si no, se ignora y sigue).
+        if os.path.exists(FINISH) and check_finish(FINISH, len(frames) >= 10):
             break
         if os.path.exists(LISTEN_TRIGGER):
             try: os.remove(LISTEN_TRIGGER)
@@ -485,6 +507,28 @@ def self_test_wake():
         ok = ok and a
     a, h, l = wake_allowed(h, l, 225.0)
     ok = ok and not a
+    # check_finish: fresca+audio sí; vieja, ausente o sin audio no (y limpia).
+    import tempfile
+    _fd, _fp = tempfile.mkstemp()
+    os.close(_fd)
+    try:
+        ok = ok and check_finish(_fp, True) is False  # vacío
+        with open(_fp, 'w') as f:
+            f.write(str(int(time.time() * 1000)))
+        ok = ok and check_finish(_fp, True) is True
+        ok = ok and (not os.path.exists(_fp))  # consumida
+        with open(_fp, 'w') as f:
+            f.write(str(int(time.time() * 1000) - 60000))
+        ok = ok and check_finish(_fp, True) is False  # vieja
+        with open(_fp, 'w') as f:
+            f.write(str(int(time.time() * 1000)))
+        ok = ok and check_finish(_fp, False) is False  # sin audio
+    finally:
+        try:
+            os.remove(_fp)
+        except Exception:
+            pass
+    ok = ok and check_finish(_fp + '.noexiste', True) is False
     print(json.dumps({'ok': ok, 'fallos': bad}))
     return 0 if ok else 1
 
