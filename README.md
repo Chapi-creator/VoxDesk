@@ -1,88 +1,77 @@
+[![Build](https://github.com/Chapi-creator/VoxDesk/actions/workflows/test.yml/badge.svg)](https://github.com/Chapi-creator/VoxDesk/actions/workflows/test.yml)
+[![Release](https://img.shields.io/github/v/release/Chapi-creator/VoxDesk)](https://github.com/Chapi-creator/VoxDesk/releases)
+[![Licencia GPL-3.0](https://img.shields.io/badge/licencia-GPL--3.0-blue)](LICENSE)
+[![Windows](https://img.shields.io/badge/Windows-10%2F11-0078D4)](https://github.com/Chapi-creator/VoxDesk/releases)
+
+[English version](README.en.md)
+
 # VoxDesk
 
-Asistente de voz para Windows con presencia estilo JARVIS: controla tu PC con comandos hablados **o escritos**, actúa por su cuenta cuando se lo permites y habla contigo.
+**Asistente de voz local-first para Windows, estilo JARVIS.** Habla (o escribe) y tu PC obedece: apps, archivos, sistema, timers, rutinas, OCR, control remoto desde el móvil — y opcionalmente IA.
 
-El audio se procesa **localmente en tu equipo** (Vosk + Silero, sin internet, sin nube).
+![VoxDesk](assets/cover.png)
 
-## Descargar
+Lo que lo hace distinto: **tu voz no sale de tu PC**. La transcripción (Vosk), la detección de voz (Silero) y la síntesis (Piper) corren 100% en local. Sin cuentas, sin nube, sin telemetría.
 
-- **Instalador:** última versión en [Releases](https://github.com/Chapi-creator/VoxDesk/releases). Un solo `.exe`: siguiente-siguiente, sin Python, sin cuentas.
-- La app avisa sola de actualizaciones y tú eliges cuándo reiniciar.
-- Si SmartScreen avisa (app sin firma comercial): Más información > Ejecutar de todas formas.
+## Descargar (2 minutos)
 
-## Requisitos
+1. Baja `VoxDesk-X.Y.Z-setup.exe` de [**Releases**](https://github.com/Chapi-creator/VoxDesk/releases).
+2. Siguiente, siguiente. Sin Python, sin cuentas, sin keys.
+3. Di tu palabra de activación (por defecto **"asistente"**) o escribe en la consola.
 
-- Windows 10/11 (64-bit)
-- Micrófono (para voz; también acepta órdenes escritas en su consola)
-- Todo incluido en el instalador: motor de voz, VAD neuronal y voces neuronales MX/ES.
+> Si SmartScreen avisa (sin firma comercial): *Más información > Ejecutar de todas formas*.
+> La app avisa sola de actualizaciones y tú eliges cuándo reiniciar.
 
-## Qué hace
+**Requisitos:** Windows 10/11 de 64 bits + micrófono. Todo lo demás viene incluido.
 
-Dile la palabra de activación (por defecto **"asistente"**) o escribe en la consola:
+## Qué sabe hacer
 
-### Control del PC
-- `abre chrome` / `abre youtube` / `abre gmail` — apps o sitios.
-- `abre chrome y pon youtube` — compuestos con "y / luego / después".
-- `sube/baja el volumen|brillo`, `captura la pantalla`, `bloquea`, `cierra sesión`, `apaga/reinicia el equipo`.
-- `cierra X`, `cierra todo`, `mata el proceso N`, servicios, papelera, archivos.
-- `ejecuta el comando ...` / `corre npm ...` — **siempre piden permiso antes**.
-
-### Entiende aunque varíes
-- Fuzzy por intención: `apaga la compu` = `apaga el equipo`. Aprende tus frases y las reutiliza (👍/👎 en el historial enseñan).
-- Recuerda lo último: `analiza eso`, `repítelo`, `¿y eso qué significa?`.
-
-### Autonomía (`encárgate de ...`)
-- Arma un plan con IA, te lo muestra, lo ejecuta paso a paso y replanifica si algo falla. Requiere IA configurada.
-
-### Vida propia (configurable)
-- Buenos días, rachas, batería baja, pausas, dormir por inactividad, modo silencio por voz (`descansa` / `despierta`).
-- Nivel en Ajustes: total / solo visual / silencio. Sin voz de 22 a 8.
-
-### Utilidades
-- `qué hora|fecha es`, `clima en <ciudad>`, `traduce <frase>`, `temporizador|alarma`, `lee esto` (lee tu selección), `cuéntame un chiste|un dato`, `sistemas` (reporte con puntaje).
-- Notas, macros (`graba macro` / `ejecuta macro`), email/WhatsApp por voz.
-
-### IA (opcional, online primero)
-- 12 proveedores (Gemini, OpenAI, Groq, DeepSeek, Anthropic, Ollama, LM Studio…) + URL custom. Key vacía vale para servidores caseros en tu red.
-- Sin IA: comandos, fuzzy, macros y utilidades funcionan igual.
+**Control del PC** — `abre chrome`, `abre youtube`, `sube el volumen`, `captura la pantalla`, `bloquea`, `cierra todo`, `mata el proceso 1234`, `vacía la papelera`, `apaga el equipo`…
+**Compuestos** — `abre chrome y pon música` (múltiples órdenes con *y / luego / después*).
+**Te entiende aunque varíes** — `apaga la compu` = `apaga el equipo`; pregunta `¿quisiste decir…?` cuando duda (di **sí**); aprende con 👍/👎; recuerda contexto (`a las 8`, `y en Madrid`, `repítelo`).
+**Te enseña trucos** — `cuando diga trabajo abre chrome` → desde entonces obedece. Rutinas (`todos los días a las 8 dime el clima`), recordatorios, macros, notas.
+**Con personalidad** — te saluda por tu nombre, varía sus frases, opina del café, te resume el día al arrancar.
+**Utilidades** — hora/fecha, clima, calculadora en español (`cuánto es el 15 por ciento de 240`), temporizadores, QR, noticias, email/WhatsApp por voz, `lee esto` (OCR).
+**Botón que para de verdad** — a mitad de respuesta, el botón de hablar lo detiene todo.
+**Control remoto** — desde el móvil en tu WiFi: QR en Ajustes, sin nube.
+**IA opcional** — Gemini, OpenAI, Groq, DeepSeek, Anthropic, Ollama, LM Studio… Sin IA configurada, todo lo anterior funciona igual.
 
 ## Voz
 
-- Transcripción Vosk offline + VAD neuronal Silero + voces neuronales Piper (mexicana default, española) con fallback a voz del sistema.
-- Ajustes muestra el motor activo (`VOZ: NEURONAL/SISTEMA/SIN VOZ`) y botones **Probar voz** y **Diagnosticar** (dice si falla al generar o al reproducir).
-- Si no suena: revisa dispositivo de salida (cuidado con drivers virtuales tipo FxSound), volumen por app y que el micrófono tenga permiso.
+- **Oídos**: Vosk offline (rápido incluido; preciso de 2,3 GB descargable desde la app) + VAD neuronal Silero. Palabra de activación configurable con detección tolerante.
+- **Boca**: Piper neuronal (mexicana por defecto, española y argentina incluidas, más descargables) con respaldo a voz del sistema. Ajustes muestra el motor en uso, velocidad, y botones **Probar voz**, **Diagnosticar** y **Diagnosticar micrófono**.
+- Si no suena: revisa salida de audio, volumen por app y permiso de micrófono.
 
-## Configuración
+## Privacidad (resumen; ver [PRIVACY.md](PRIVACY.md))
 
-Palabra de activación, micrófono, pausa de fin, tu nombre, iniciativa, voz y velocidad, IA, SMTP. Claves cifradas en `%APPDATA%\ai-desktop-assistant`.
+- Audio, transcripción, memoria y cerebro: **100% locales**. Cero telemetría.
+- Red solo cuando tú la pides: clima, noticias, velocidad, IA con **tu** key, updates.
+- Tus datos viven en `%APPDATA%\ai-desktop-assistant` (desinstalar no los borra; hay botón **Borrar mis datos** en Ajustes).
 
-## Privacidad
+## Seguridad
 
-Lee la [Política de Privacidad](PRIVACY.md). Resumen:
-
-- Audio y transcripción 100% locales. Sin telemetría ni analytics.
-- Red solo cuando tú la pides (clima, noticias, IA con tu key, updates).
-- La IA con tu key envía tus preguntas a ese proveedor (opcional).
-
-## Riesgos
-
-- Puede ejecutar PowerShell dictado o generado por IA: **todo lo delicado pide permiso** (apagados, borrados, servicios, comandos, email). El filtro de lista negra no es defensa completa: revisa antes de aceptar.
-- Sin firma comercial: SmartScreen avisará hasta firmarlo.
+Puede ejecutar PowerShell y abrir apps: **todo lo delicado pide permiso** (apagados, borrados, servicios, comandos, email). El filtro de lista negra no es defensa completa: revisa antes de aceptar.
 
 ## Desarrollo
 
-- `npm install` y `npm run setup` (modelo Vosk ~40 MB + Piper/voces ~150 MB, una vez).
-- `npm start` · `npm test` (unitarias + renderer) · `npm run lint` · CI en GitHub.
-- `python src/main/wake.py --self-test` verifica el VAD sin micro.
-- `VOXDESK_NO_WAKE=1` arranca sin abrir el micro (verificación).
+```bash
+npm install
+npm run setup     # modelo Vosk ~40 MB + Piper/voces ~150 MB (una vez)
+npm start         # correr en dev
+npm test          # 200+ tests (unitarias, renderer, integración)
+npm run lint
+```
+
+- `python src/main/wake.py --self-test[-capture|-wake]` verifica voz sin micro.
+- `VOXDESK_NO_WAKE=1` arranca sin abrir el micro.
+- CI en GitHub en cada push.
 
 ## Publicar una release
 
-1. Versión en `package.json`, push a `main` (CI debe estar verde).
+1. Versión en `package.json`, push a `main` (CI verde).
 2. `npm run build` → verifica `dist/VoxDesk-<versión>-setup.exe`.
-3. Release en GitHub con el `.exe` **y** `dist/latest.yml` (sin el yml el auto-update falla con 404).
-4. Espejo en itch.io.
+3. Release en GitHub con el `.exe` **y** `dist/latest.yml` (sin el yml el auto-update falla).
 
 ## Licencia
 
-Privado hasta nuevo aviso. Contacta al autor para uso comercial.
+**GPL-3.0** — ver [LICENSE](LICENSE). Eres libre de usar, modificar y compartir; si distribuyes cambios, comparte el código igual. Ver [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) por los componentes de terceros.

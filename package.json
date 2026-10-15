@@ -1,7 +1,15 @@
 {
   "name": "voxdesk",
   "version": "0.6.0",
-  "description": "Asistente de voz para Windows. Controla tu PC con comandos de voz: apps, archivos, macros, sistema, OCR e IA.",
+  "description": "Asistente de voz local-first para Windows: controla tu PC hablando, sin nube. / Local-first voice assistant for Windows.",
+  "license": "GPL-3.0-only",
+  "author": "Chapi-creator",
+  "homepage": "https://github.com/Chapi-creator/VoxDesk",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Chapi-creator/VoxDesk.git"
+  },
+  "keywords": ["voice-assistant", "asistente-de-voz", "electron", "windows", "vosk", "offline", "spanish", "tts", "open-source"],
   "main": "main.js",
   "scripts": {
     "start": "electron .",
