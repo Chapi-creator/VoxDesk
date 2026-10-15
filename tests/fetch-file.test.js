@@ -181,6 +181,7 @@ async function run() {
   })
 
   console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
+  try { fs.rmSync(ROOT, { recursive: true, force: true }) } catch {}
   process.exit(failed ? 1 : 0)
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "voxdesk",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Asistente de voz local-first para Windows: controla tu PC hablando, sin nube. / Local-first voice assistant for Windows.",
   "license": "GPL-3.0-only",
   "author": "Chapi-creator",
