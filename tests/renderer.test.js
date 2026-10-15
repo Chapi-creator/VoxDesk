@@ -304,14 +304,19 @@ test('OnboardingManager: sin micro muestra mensaje, no rompe', async () => {
   assert.ok(doc.getElementById('ob-mic-status').textContent.length > 0)
 })
 
-test('VoiceModule: start/stop cambian estado', async () => {
+test('VoiceModule: escucha honesta (sigue hasta heard/stop)', async () => {
   const VoiceModule = loadClass('src/renderer/voice.js', 'VoiceModule', { window: { api: apiStub() } })
   const v = new VoiceModule()
   const states = []
   v.onStateChange = (l) => states.push(l)
-  await v.start() // viaWake: el flujo sigue en wake.exe, no emite false
-  assert.equal(v.isListening, false)
+  await v.start() // viaWake resuelve al instante, PERO la captura sigue en el motor
+  assert.equal(v.isListening, true)
   assert.deepEqual(states, [true])
+  v.heard() // llegó el resultado por evento
+  assert.equal(v.isListening, false)
+  assert.deepEqual(states, [true, false])
+  await v.start()
+  assert.equal(v.isListening, true)
   v.stop()
   assert.equal(v.isListening, false)
 

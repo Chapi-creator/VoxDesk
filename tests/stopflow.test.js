@@ -94,7 +94,9 @@ function loadApp() {
   const recogDeferreds = []
   const base = {
     executeCommand: () => { const d = deferred(); execDeferreds.push(d); calls.exec.push(1); return d.promise },
-    recognizeSpeech: () => { const d = deferred(); recogDeferreds.push(d); return d.promise },
+    // Como en producción: resuelve AL INSTANTE (solo escribe el trigger).
+    // La captura real sigue en el motor; el resultado llega por onWakeResult.
+    recognizeSpeech: async () => ({ viaWake: true }),
     cancelSpeech: async () => { calls.cancelSpeech++; return true },
     speak: async (t) => { calls.speak++; const d = deferred(); speakDeferreds.push(d); return d.promise },
     stopSpeaking: async () => { calls.stopSpeaking++; return {} },
@@ -142,7 +144,7 @@ function loadApp() {
   new Function(...appNames, appSrc)(
     win, doc, nav, raf, timers.setTimeout, timers.clearTimeout, timers.setInterval,
     cls.VoiceModule, cls.UIManager, cls.SettingsManager, cls.GuideManager, cls.OnboardingManager)
-  return { doc, win, api, timers, calls, handlers, execDeferreds, speakDeferreds, recogDeferreds }
+  return { doc, win, api, timers, calls, handlers, execDeferreds, speakDeferreds }
 }
 
 const tick = async (n = 8) => { for (let i = 0; i < n; i++) await new Promise(r => setImmediate(r)) }
@@ -236,11 +238,16 @@ async function run() {
     await tick()
     clickBtn(t.doc, 'btn-record') // empieza a escuchar (vía botón)
     await tick()
-    clickBtn(t.doc, 'btn-record') // segundo toque = terminar
+    await tick() // recognizeSpeech ya resolvió: escucha real sigue en motor
+    clickBtn(t.doc, 'btn-record') // segundo toque = terminar (no reiniciar)
     await tick()
     assert.equal(t.calls.finishCapture, 1, 'pidió finish, no cancel')
     assert.equal(t.calls.cancelSpeech || 0, 0, 'no canceló')
     assert.ok(/PROCESANDO/.test(t.doc.getElementById('status').textContent))
+    // llega el resultado de la captura terminada
+    t.handlers.wakeResult({ success: true, message: 'hola', speak: false, _text: 'hola' })
+    await tick()
+    assert.ok(/hola/.test(t.doc.getElementById('response').textContent))
   })
 
   await test('voz de fondo (timer/remoto) muestra stop y lo oculta al callar', async () => {

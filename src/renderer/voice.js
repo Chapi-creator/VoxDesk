@@ -21,21 +21,34 @@ class VoiceModule {
       result = await window.api.recognizeSpeech(this._ptt ? { ptt: true } : {})
 
       if (this._stopped) return
+      // Vía wake: la captura sigue en el motor; isListening queda hasta que
+      // llegue el resultado (heard), haya error o stop() explícito. Antes se
+      // apagaba en ms y el segundo toque reiniciaba en vez de terminar.
       if (result && result.viaWake) return
       if (result === null) {
+        this.isListening = false
         if (this.onError) this.onError('Tiempo de espera agotado')
       } else if (result.error) {
+        this.isListening = false
         if (this.onError) this.onError(result.error)
       } else if (this.onResult) {
+        this.isListening = false
         this.onResult(result)
       }
     } catch (err) {
+      this.isListening = false
       if (!this._stopped && this.onError) this.onError(err.message || 'Error desconocido')
     } finally {
-      this.isListening = false
-      if (!this._stopped && !(result && result.viaWake) && this.onStateChange) this.onStateChange(false)
+      if (!this.isListening && !this._stopped && !(result && result.viaWake) && this.onStateChange) this.onStateChange(false)
       this._stopped = false
     }
+  }
+
+  // Llegó el resultado de una captura (vía evento wake:result): cerrar estado.
+  heard() {
+    if (!this.isListening) return
+    this.isListening = false
+    if (this.onStateChange) this.onStateChange(false)
   }
 
   stop() {

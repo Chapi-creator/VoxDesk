@@ -128,7 +128,7 @@
     window.api.cacheFeedback(transcript, good).catch(() => {})
   }
 
-  voice.onResult = (transcript) => { handleCommand(transcript) }
+  voice.onResult = (transcript) => { voice.heard(); handleCommand(transcript) }
 
   window.api.getConfig().then(cfg => {
     voice._pttMode = !!cfg.pttMode
@@ -176,6 +176,7 @@
 
   window.api.onWakeResult((result) => {
     if (!result) return
+    voice.heard()
     clearTimeout(_thinkTimer); _thinkTimer = null
     if (result._text) ui.showTranscript(result._text)
     handleResult(result)
