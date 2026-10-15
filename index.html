@@ -81,6 +81,7 @@
       <div class="settings-section">
         <div class="settings-section-title">Inteligencia Artificial</div>
         <div class="status-msg" id="settings-ai-hint">Sin IA Vox solo obedece comandos. Con IA razona y explica.</div>
+        <div class="status-msg" style="text-align:left">🔒 Qué sale de tu PC: con proveedor online, tus preguntas van a su API (tu key, tu cuenta). Clima (wttr.in), ubicación (ipapi), noticias y velocidad usan servicios públicos. Todo lo demás (voz, comandos, memoria, cerebro) es 100% local.</div>
         <div style="display:flex;gap:6px;margin-bottom:8px">
           <button class="btn-start" id="btn-ai-key" style="flex:1">Guía: key gratis</button>
           <button class="btn-start" id="btn-ai-local" style="flex:1">Usar Ollama local</button>
@@ -223,6 +224,14 @@
           <button class="btn-start" id="btn-remote-probe" style="flex:1">Probar alcance</button>
           <button class="btn-start" id="btn-remote-restart" style="flex:1">Reiniciar servidor</button>
         </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">Tus datos (solo en tu PC)</div>
+        <div class="status-msg" style="text-align:left">Todo vive en tu carpeta de datos (config, memoria, modelos, voces, logs). Desinstalar NO la borra.</div>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <button class="btn-start" id="btn-data-wipe" style="flex:1">Borrar mis datos y salir</button>
+        </div>
+        <div class="status-msg" id="settings-data-status"></div>
       </div>
       <div class="settings-section">
         <div class="settings-section-title">Correo SMTP</div>

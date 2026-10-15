@@ -1824,6 +1824,51 @@ test('config trae wakeEnabled por defecto', () => {
   assert.equal(config.load().wakeEnabled, true)
 })
 
+console.log('\nFIX: privacidad (QR local, wipe, speedtest)')
+
+test('wipeUserData borra y rechaza rutas cortas', () => {
+  const config = require('../src/main/config')
+  const fs = require('fs')
+  const path = require('path')
+  const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'vox-wipe-'))
+  fs.writeFileSync(path.join(dir, 'a.json'), '{}')
+  fs.mkdirSync(path.join(dir, 'sub'))
+  fs.writeFileSync(path.join(dir, 'sub', 'b.json'), '{}')
+  assert.equal(config.wipeUserData(dir), true)
+  assert.equal(fs.existsSync(dir), false)
+  assert.equal(config.wipeUserData('C:\\x'), false)
+  assert.equal(config.wipeUserData(''), false)
+})
+
+await atest('QR se genera local sin red', async () => {
+  const smart = require('../src/main/smart-exec')
+  const fs = require('fs')
+  const path = require('path')
+  const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'vox-qr-'))
+  process.env.VOXDESK_QR_DIR = dir
+  try {
+    const found = smart.getPatternExamples().find(e => e.canon === 'genera código QR hola mundo')
+    assert.ok(found, 'existe patrón QR')
+    const r = await found.pattern.handler(['genera código QR hola', undefined, 'hola'])
+    assert.ok(String(r && r.message || r).includes('escritorio'))
+    const files = fs.readdirSync(dir).filter(f => f.endsWith('.png'))
+    assert.equal(files.length, 1)
+    assert.ok(fs.statSync(path.join(dir, files[0])).size > 1000)
+  } finally {
+    delete process.env.VOXDESK_QR_DIR
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+await atest('speedtest resuelve (con o sin red)', async () => {
+  const smart = require('../src/main/smart-exec')
+  const pat = smart.PATTERNS.find(p => typeof p.handler === 'function' && /speedtest|velocidad/.test(String(p.match)))
+  assert.ok(pat, 'existe patrón speedtest')
+  const r = await pat.handler(['speedtest'])
+  const msg = String(r && r.message || r)
+  assert.ok(/Velocidad:|Sin internet/.test(msg), msg.slice(0, 100))
+})
+
 console.log(`\n${passed + failed} tests, ${passed} passed, ${failed} failed\n`)
 process.exit(failed ? 1 : 0)
 }

@@ -31,6 +31,20 @@ function modelsDir() {
   return path.join(_userDataPath || '', 'models')
 }
 
+// Borra TODO lo del usuario (config, memoria, modelos, voces, logs).
+// La app debe cerrarse justo después (cachés en RAM). Testeable con tmp.
+function wipeUserData(dir) {
+  const target = dir || _userDataPath
+  if (!target || target.length < 10) return false
+  try {
+    fs.rmSync(target, { recursive: true, force: true })
+    _cfgCache = null; _cfgMtime = 0; _cfgFile = ''
+    return !fs.existsSync(target)
+  } catch {
+    return false
+  }
+}
+
 function _crypt() {
   try {
     const { safeStorage } = require('electron')
@@ -92,4 +106,4 @@ function save(data) {
   }
 }
 
-module.exports = { setUserDataPath, modelsDir, load, save }
+module.exports = { setUserDataPath, modelsDir, load, save, wipeUserData }

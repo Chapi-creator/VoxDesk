@@ -534,6 +534,17 @@ ipcMain.handle('tts:stop', () => {
 
 ipcMain.handle('config:get', () => config.load())
 
+// Borra TODOS los datos del usuario y cierra (para regalar/vender el PC).
+// El renderer confirma dos veces antes de llamar.
+ipcMain.handle('data:wipe', async () => {
+  try { wake.stop() } catch {}
+  try { if (_remoteServer) _remoteServer.close() } catch {}
+  let ok = false
+  try { ok = config.wipeUserData() } catch {}
+  setTimeout(() => { try { app.quit() } catch {} }, 800)
+  return ok
+})
+
 ipcMain.handle('config:save', (_event, data) => {
   if (data.wakeWord) data.wakeWord = data.wakeWord.toLowerCase().trim()
   const ok = config.save(data)

@@ -41,6 +41,8 @@ class SettingsManager {
     this.elements.remoteRevokeBtn = document.getElementById('btn-remote-revoke')
     this.elements.remoteProbeBtn = document.getElementById('btn-remote-probe')
     this.elements.remoteRestartBtn = document.getElementById('btn-remote-restart')
+    this.elements.dataWipeBtn = document.getElementById('btn-data-wipe')
+    this.elements.dataStatus = document.getElementById('settings-data-status')
     this.elements.customVoices = document.getElementById('settings-custom-voices')
     this.elements.voiceUrl = document.getElementById('settings-voice-url')
     this.elements.voiceAddBtn = document.getElementById('btn-voice-add')
@@ -191,6 +193,14 @@ class SettingsManager {
             ? `Micrófono ${r.verdict}: ${r.consejo}`
             : 'No se pudo probar: ' + ((r && r.error) || 'reintenta')
         }
+      } catch {}
+    })
+    if (this.elements.dataWipeBtn) this.elements.dataWipeBtn.addEventListener('click', async () => {
+      try {
+        if (!window.confirm('Borra TODO: config, memoria, modelos, voces y logs. La app se cerrará. ¿Seguro?')) return
+        if (!window.confirm('Última oportunidad: ¿borrar mis datos y salir?')) return
+        if (this.elements.dataStatus) this.elements.dataStatus.textContent = 'Borrando…'
+        await window.api.dataWipe()
       } catch {}
     })
     if (this.elements.modelDlBtn) this.elements.modelDlBtn.addEventListener('click', async () => {

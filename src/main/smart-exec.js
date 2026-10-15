@@ -316,13 +316,51 @@ const PATTERNS = [
 
   // --- QR CODE ---
   { match: /genera\s+(un\s+)?c[oó]digo\s+qr\s+(?:con\s+)?(?:el\s+)?(?:texto\s+)?(.+)/i,
-    run: (m) => `Add-Type -AssemblyName System.Drawing; $data = '${m[2].trim().replace(/'/g, "''")}'; $qr = New-Object -ComObject "QRCodeMaker.XQRCode" -ErrorAction SilentlyContinue; if (-not $qr) { $wc = New-Object Net.WebClient; $url = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + [Net.WebUtility]::UrlEncode('${m[2].trim().replace(/'/g, "''")}'); $img = [System.Drawing.Image]::FromStream($wc.OpenRead($url)); $img.Save("$env:TEMP\\qr_$(Get-Random).png"); Start-Process "$env:TEMP\\qr_*.png" }`,
-    msg: (m) => `Generando QR: ${m[2].trim()}` },
+    handler: async (m) => {
+      // Local con la lib qrcode: tu texto no viaja a ningún servicio.
+      try {
+        const QRCode = require('qrcode')
+        const dataUrl = await QRCode.toDataURL(m[2].trim().slice(0, 500), { width: 400, margin: 1 })
+        const png = Buffer.from(dataUrl.split(',')[1], 'base64')
+        const dir = process.env.VOXDESK_QR_DIR || require('path').join(require('os').homedir(), 'Desktop')
+        const dest = require('path').join(dir, `qr_${Date.now()}.png`)
+        require('fs').writeFileSync(dest, png)
+        if (!process.env.VOXDESK_QR_DIR) {
+          const { exec } = require('child_process')
+          exec(`start "" "${dest}"`, { windowsHide: true }, () => {})
+        }
+        return `QR guardado en el escritorio.`
+      } catch (e) {
+        return { success: false, message: 'No pude generar el QR.', speak: true }
+      }
+    },
+    ex: ['genera código QR hola mundo'],
+    msg: 'Generando QR…' },
 
   // --- SPEEDTEST ---
+  // Nativo: descarga cronometrada + ping. Sin ejecutar código de terceros
+  // (antes: curl | python remoto). Sin subida (exigiría otro servicio).
   { match: /speedtest|velocidad\s+de\s+internet|prueba\s+de\s+velocidad|test\s+de\s+internet/i,
-    run: `try { curl -s 'https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py' | python - 2>&1 | Select-String 'Download|Upload|Ping' | Out-String } catch { Write-Output 'Speedtest requiere Python. Instálalo o visita speedtest.net' }`,
-    capture: true,
+    handler: async () => {
+      const { execFile } = require('child_process')
+      const run = (ps, timeout) => new Promise((resolve) => {
+        execFile('powershell', ['-NoProfile', '-Command', ps], { timeout: timeout || 60000, windowsHide: true }, (err, stdout) => {
+          resolve({ err, out: String(stdout || '').trim() })
+        })
+      })
+      const ping = await run(`(Test-Connection -ComputerName 8.8.8.8 -Count 4 -ErrorAction SilentlyContinue | Measure-Object -Property ResponseTime -Average).Average`)
+      const dl = await run(`$u='https://speed.cloudflare.com/__down?bytes=5000000'; $t=[DateTime]::UtcNow; try { $b=(New-Object Net.WebClient).DownloadData($u); $ms=([DateTime]::UtcNow-$t).TotalSeconds; if ($ms -gt 0 -and $b.Length -gt 100000) { [math]::Round(($b.Length*8/1e6)/$ms,1).ToString() + '|' + $b.Length } else { 'ERR' } } catch { 'ERR' }`, 90000)
+      const ms = ping.err ? null : parseFloat(ping.out.replace(',', '.'))
+      let mbps = null
+      const m = /^([\d.]+)\|(\d+)$/.exec(dl.out)
+      if (m) mbps = parseFloat(m[1])
+      if (ms === null && mbps === null) return { success: false, message: 'Sin internet o bloqueado.', speak: true }
+      const parts = []
+      if (mbps !== null) parts.push(`bajada ~${mbps} Mbps`)
+      if (ms !== null && !isNaN(ms)) parts.push(`ping ~${Math.round(ms)} ms`)
+      return `Velocidad: ${parts.join(', ')}. (Sin subida: exigiría otro servicio.)`
+    },
+    capture: false,
     msg: 'Midiendo velocidad de internet...' },
 
   // --- DICTATION / TYPE FROM VOICE ---
